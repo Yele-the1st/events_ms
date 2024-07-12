@@ -1,7 +1,7 @@
 import { Schema, model, Document } from "mongoose";
 import bcrypt from "bcryptjs";
 
-interface IUser extends Document {
+export interface IUser extends Document {
   username: string;
   email: string;
   password: string;
@@ -33,6 +33,9 @@ userSchema.pre("save", async function (next) {
 });
 
 userSchema.methods.matchPassword = async function (enteredPassword: string) {
+  if (!enteredPassword) {
+    return false;
+  }
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
