@@ -1,14 +1,16 @@
+/* eslint-disable no-console */
 import passport from "passport";
 import { Strategy as GoogleStrategy, Profile } from "passport-google-oauth20";
 import crypto from "crypto";
 import { User } from "../../database/models";
-import { config } from "../config";
+import { getConfig } from "../config";
+import logger from "../winston/logger";
 
 const env = process.env.NODE_ENV || "development";
-const envConfig = config[env as keyof typeof config];
+const config = getConfig[env as keyof typeof getConfig];
 
-const googleClientID: string = envConfig.GOOGLE_CLIENT_ID as string;
-const googleClientSecret: string = envConfig.GOOGLE_CLIENT_SECRET as string;
+const googleClientID: string = config.GOOGLE_CLIENT_ID as string;
+const googleClientSecret: string = config.GOOGLE_CLIENT_SECRET as string;
 
 const configureGoogleStrategy = () => {
   passport.use(
@@ -46,13 +48,15 @@ const configureGoogleStrategy = () => {
               try {
                 const constants = {
                   username: user.username,
-                  verification_link: `${envConfig.LIVE_BASE_URL}/api/v1/users/verify-email?token=${user.email}`,
+                  verification_link: `${config.LIVE_BASE_URL}/api/v1/users/verify-email?token=${user.email}`,
                   password: tempPassword,
                 };
                 // Send welcome email
+
                 console.log(constants);
               } catch (err) {
                 console.error(err);
+                logger.error(err);
               }
             }
           }
