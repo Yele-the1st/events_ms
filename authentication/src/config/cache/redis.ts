@@ -1,21 +1,27 @@
 import { Redis } from "ioredis";
+import { getConfig } from "../config";
+import logger from "../winston/logger";
+
+const env = process.env.NODE_ENV || "development";
+const config = getConfig[env as keyof typeof getConfig];
+
+const host = config.REDIS_HOST;
+const port = config.REDIS_PORT!;
+const password = config.REDIS_PASSWORD;
 
 // Create a new Redis instance
-export const redis = new Redis({
-  host: "localhost", // Redis server address
-  port: 6379, // Redis server port
-  // Optionally, add other configurations like password if Redis is password protected
-  //     password: process.env.REDIS_PASSWORD || '',
+const redisClient = new Redis({
+  host: host || "localhost", // Redis server address
+  port: parseInt(port, 10) || 6379, // Redis server port
+  password: password, // Redis server password if set
 });
 
-// const redisClient = () => {
-//   if (process.env.REDIS_URL) {
-//     console.log(`Redis connected`);
-//     return process.env.REDIS_URL;
-//   }
-//   throw new Error("Redis connection failed");
-// };
+redisClient.on("connect", () => logger.info("Cache is connecting"));
+redisClient.on("ready", () => logger.info("Cache is ready"));
+redisClient.on("end", () => logger.info("Cache disconnected"));
+redisClient.on("reconnecting", () => logger.info("Cache is reconnecting"));
+redisClient.on("error", (err) => {
+  logger.error("Redis error:", err);
+});
 
-// export const redis = new Redis(redisClient());
-
-// const redisURL = `redis://:${redis.password}@${redis.host}:${redis.port}`;
+export default redisClient;

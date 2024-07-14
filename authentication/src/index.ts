@@ -1,15 +1,14 @@
-import express from "express";
-import morganMiddleware from "./api/middlewares/morgan";
+import http from "http";
+import { app } from "./app";
+import { connectDB } from "./config/db/mongodb";
+import logger from "./config/winston/logger";
 
-const app = express();
-
-app.use(express.json());
+const server = http.createServer(app);
 
 const PORT = process.env.PORT || 8001;
 
-// Use Morgan for HTTP request logging with Winston integration
-app.use(morganMiddleware);
-
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+// create server
+server.listen(PORT, () => {
+  logger.info(`Server is running on http://localhost:${PORT}`);
+  connectDB();
 });

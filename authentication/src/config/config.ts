@@ -6,7 +6,7 @@ dotenv.config();
 interface Config {
   NODE_ENV: string | undefined;
   UV_THREADPOOL_SIZE: number;
-  DATABASE_URL: string | undefined;
+  MONGODB_URL: string | undefined;
   PORT: string | number;
   JWT_SECRET: string | undefined;
   JWT_EXPIRES: string | undefined;
@@ -20,12 +20,16 @@ interface Config {
   LIVE_BASE_URL: string;
   HONEYBADGER_KEY: string | undefined;
   LOG_DIRECTORY: string | undefined;
+  REDIS_HOST: string | undefined;
+  REDIS_PORT: string | undefined;
+  REDIS_PASSWORD: string | undefined;
+  COOKIE_DOMAIN: string | undefined;
 }
 
 const development: Config = {
   NODE_ENV: process.env.NODE_ENV,
   UV_THREADPOOL_SIZE: os.cpus().length,
-  DATABASE_URL: process.env.DATABASE_URL,
+  MONGODB_URL: process.env.MONGODB_URL,
   PORT: process.env.PORT || 3000,
   JWT_SECRET: process.env.JWT_SECRET,
   JWT_EXPIRES: process.env.JWT_EXPIRES,
@@ -41,6 +45,10 @@ const development: Config = {
   HONEYBADGER_KEY: process.env.HONEYBADGER_KEY,
 
   LOG_DIRECTORY: process.env.LOG_DIR,
+  REDIS_HOST: process.env.REDIS_HOST,
+  REDIS_PORT: process.env.REDIS_PORT,
+  REDIS_PASSWORD: process.env.REDIS_PASSWORD,
+  COOKIE_DOMAIN: process.env.COOKIE_DOMAIN,
 };
 
 const test: Partial<Config> = {

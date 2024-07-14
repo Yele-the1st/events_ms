@@ -7,7 +7,7 @@ import { getConfig } from "../config";
 const env = process.env.NODE_ENV || "development";
 const config = getConfig[env as keyof typeof getConfig];
 
-const dbURI: string = config.DATABASE_URL as string;
+const dbURI: string = config.MONGODB_URL as string;
 const options: ConnectOptions = {
   serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
   socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
