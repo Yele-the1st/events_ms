@@ -24,4 +24,9 @@ redisClient.on("error", (err) => {
   logger.error("Redis error:", err);
 });
 
+// If the Node process ends, close the Cache connection
+process.on("SIGINT", async () => {
+  redisClient.disconnect();
+});
+
 export default redisClient;

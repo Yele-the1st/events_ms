@@ -7,8 +7,17 @@ import { sessionOptions } from "./config/db/sessionStore";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { limiter } from "./config/limiter/rateLimiter";
+import Honeybadger from "./config/monitoring/honeybarger";
+import {
+  metricsEndpoint,
+  requestMetricsMiddleware,
+  trackMetrics,
+} from "./config/prometheus/metrics";
 
 export const app = express();
+
+// Use before all other app middleware.
+app.use(Honeybadger.requestHandler);
 
 // Apply Helmet middleware for enhanced security headers
 app.use(helmet());
@@ -34,3 +43,15 @@ app.use(session(sessionOptions));
 
 // Rate Limiter: Limit requests to 100 requests per hour per IP address
 app.use(limiter);
+
+// Use after all other app middleware
+app.use(Honeybadger.errorHandler);
+
+// Middleware to collect request metrics
+app.use(requestMetricsMiddleware);
+app.use(trackMetrics);
+
+// other middleware [routes]
+
+// Metrics endpoint
+app.get("/metrics", metricsEndpoint);
