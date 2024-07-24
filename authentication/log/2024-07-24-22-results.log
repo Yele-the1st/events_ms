@@ -1,0 +1,7 @@
+2024-07-24 22:57:08[logger.ts] info: "Server is running on http://localhost:8001"
+2024-07-24 22:57:08[logger.ts] info: "Cache is connecting"
+2024-07-24 22:57:08[logger.ts] error: "querySrv ETIMEOUT _mongodb._tcp.event.knaet9c.mongodb.net"
+2024-07-24 22:59:45[logger.ts] info: "Server is running on http://localhost:8001"
+2024-07-24 22:59:45[logger.ts] info: "Cache is connecting"
+2024-07-24 22:59:45[logger.ts] info: "Cache is ready"
+2024-07-24 22:59:48[logger.ts] info: "MongoDB connection established successfully"

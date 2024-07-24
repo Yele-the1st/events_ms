@@ -9,10 +9,10 @@ import cookieParser from "cookie-parser";
 import { limiter } from "./config/limiter/rateLimiter";
 import Honeybadger from "./config/monitoring/honeybarger";
 import {
-  metricsEndpoint,
   requestMetricsMiddleware,
   trackMetrics,
 } from "./config/prometheus/metrics";
+import indexRouter from "./api/routes/index";
 
 export const app = express();
 
@@ -28,6 +28,9 @@ app.use(express.json());
 // Parse cookies attached to the client request
 app.use(cookieParser());
 
+// Use the session middleware with the configured options
+app.use(session(sessionOptions));
+
 // Initialize Passport configuration
 configurePassport();
 
@@ -37,9 +40,6 @@ app.use(passport.session());
 
 // Use Morgan for HTTP request logging with Winston integration
 app.use(morganMiddleware);
-
-// Use the session middleware with the configured options
-app.use(session(sessionOptions));
 
 // Rate Limiter: Limit requests to 100 requests per hour per IP address
 app.use(limiter);
@@ -52,6 +52,4 @@ app.use(requestMetricsMiddleware);
 app.use(trackMetrics);
 
 // other middleware [routes]
-
-// Metrics endpoint
-app.get("/metrics", metricsEndpoint);
+app.use("/", indexRouter);

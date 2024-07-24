@@ -23,3 +23,27 @@ export const connectDB = async (): Promise<void> => {
     process.exit(1);
   }
 };
+
+export const connectDBWithRetry = async (
+  retries = 10,
+  delay = 5000
+): Promise<void> => {
+  try {
+    logger.info("Attempting to connect to MongoDB...");
+    await mongoose.connect(dbURI, options);
+    logger.info("MongoDB connection established successfully");
+  } catch (err) {
+    logger.error("MongoDB connection error:", err);
+    if (retries > 0) {
+      logger.warn(
+        `Retrying MongoDB connection in ${
+          delay / 1000
+        } seconds... (${retries} retries left)`
+      );
+      setTimeout(() => connectDBWithRetry(retries - 1, delay), delay);
+    } else {
+      logger.error("MongoDB connection failed after retries. Exiting process.");
+      process.exit(1);
+    }
+  }
+};

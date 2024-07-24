@@ -1,11 +1,14 @@
 import { Request, Response, NextFunction } from "express";
 import Prometheus from "prom-client";
+import logger from "../winston/logger";
 
+// Initialize Prometheus Registry
 const register = new Prometheus.Registry();
 
 // Collect default metrics and register them
 Prometheus.collectDefaultMetrics({ register });
 
+// Define metrics
 const httpRequestDurationMicroseconds = new Prometheus.Histogram({
   name: "http_request_duration_ms",
   help: "Duration of HTTP requests in ms",
@@ -52,7 +55,11 @@ const networkTrafficTotal = new Prometheus.Counter({
   registers: [register],
 });
 
+// Middleware to track metrics
 function trackMetrics(req: Request, res: Response, next: NextFunction) {
+  // Set start time for request duration calculation
+  res.locals.startEpoch = Date.now();
+
   // Track memory usage
   const memoryUsageInBytes = process.memoryUsage().rss;
   memoryUsageGauge.set(memoryUsageInBytes);
@@ -109,8 +116,12 @@ function requestMetricsMiddleware(
 }
 
 function metricsEndpoint(req: Request, res: Response) {
-  res.set("Content-Type", register.contentType);
-  res.end(register.metrics());
+  try {
+    res.set("Content-Type", register.contentType);
+    res.send(register.metrics());
+  } catch (error) {
+    logger.error("Error in metricsEndpoint:", error);
+    res.status(500).send("Internal Server Error");
+  }
 }
-
 export { requestMetricsMiddleware, trackMetrics, metricsEndpoint, register };

@@ -1,6 +1,6 @@
 import http from "http";
 import { app } from "./app";
-import { connectDB } from "./config/db/mongodb";
+import { connectDBWithRetry } from "./config/db/mongodb";
 import logger from "./config/winston/logger";
 
 const server = http.createServer(app);
@@ -10,13 +10,17 @@ const PORT = process.env.PORT || 8001;
 // create server
 server.listen(PORT, () => {
   logger.info(`Server is running on http://localhost:${PORT}`);
-  connectDB();
+  connectDBWithRetry();
 });
 
 // Graceful shutdown
-process.on("SIGTERM", () => {
+const shutdown = () => {
+  logger.info("Shutting down server...");
   server.close(() => {
     logger.info("Server terminated gracefully");
     process.exit(0);
   });
-});
+};
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
