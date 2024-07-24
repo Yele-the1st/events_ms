@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+
 import { metricsEndpoint } from "../../config/prometheus/metrics";
 import authRoutes from "./authRoutes";
 
@@ -15,6 +16,7 @@ router.use(`${base}/auth`, authRoutes);
 // Metrics endpoint
 router.get("/metrics", metricsEndpoint);
 
+// Handle unknown routes
 // Catch-all route for undefined routes
 router.all("*", (req: Request, res: Response) => {
   res.status(404).json({

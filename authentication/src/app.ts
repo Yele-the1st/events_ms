@@ -17,11 +17,12 @@ import {
   trackMetrics,
 } from "./config/prometheus/metrics";
 import indexRouter from "./api/routes/index";
+import { ErrorMiddleware } from "./api/middlewares/errorMiddleware";
 
 export const app = express();
 
-// Use before all other app middleware.
-app.use(Honeybadger.requestHandler);
+// Apply middleware before other routes
+app.use(Honeybadger.requestHandler); // Honeybadger request handler
 
 // Apply compression middleware with default settings
 app.use(compression());
@@ -54,12 +55,15 @@ app.use(morganMiddleware);
 // Rate Limiter: Limit requests to 100 requests per hour per IP address
 app.use(limiter);
 
-// other middleware [routes]
+// Route handlers
 app.use("/", indexRouter);
 
 // Middleware to collect request metrics
 app.use(requestMetricsMiddleware);
 app.use(trackMetrics);
 
-// Use after all other app middleware
+// Error handling middleware (make sure it's last)
+app.use(ErrorMiddleware);
+
+// Honeybadger error handler (optional if required)
 app.use(Honeybadger.errorHandler);
