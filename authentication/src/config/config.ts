@@ -24,6 +24,7 @@ interface Config {
   REDIS_PORT: string | undefined;
   REDIS_PASSWORD: string | undefined;
   COOKIE_DOMAIN: string | undefined;
+  API_KEY: string | undefined;
 }
 
 const development: Config = {
@@ -49,6 +50,7 @@ const development: Config = {
   REDIS_PORT: process.env.REDIS_PORT,
   REDIS_PASSWORD: process.env.REDIS_PASSWORD,
   COOKIE_DOMAIN: process.env.COOKIE_DOMAIN,
+  API_KEY: process.env.API_KEY,
 };
 
 const test: Partial<Config> = {

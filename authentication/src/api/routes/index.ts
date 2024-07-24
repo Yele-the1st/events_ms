@@ -15,8 +15,9 @@ router.use(`${base}/auth`, authRoutes);
 // Metrics endpoint
 router.get("/metrics", metricsEndpoint);
 
+// Catch-all route for undefined routes
 router.all("*", (req: Request, res: Response) => {
-  res.status(400).json({
+  res.status(404).json({
     status: "fail",
     message: `Can't find (${req.method}) ${req.originalUrl} on this server. Please check the documentation for the correct route.`,
   });

@@ -1,11 +1,15 @@
+// Import Packages
 import express from "express";
+import session from "express-session";
+import passport from "passport";
+import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import compression from "compression";
+
+// Import configs
 import morganMiddleware from "./api/middlewares/morgan";
 import { configurePassport } from "./config/passport";
-import passport from "passport";
-import session from "express-session";
 import { sessionOptions } from "./config/db/sessionStore";
-import helmet from "helmet";
-import cookieParser from "cookie-parser";
 import { limiter } from "./config/limiter/rateLimiter";
 import Honeybadger from "./config/monitoring/honeybarger";
 import {
@@ -18,6 +22,12 @@ export const app = express();
 
 // Use before all other app middleware.
 app.use(Honeybadger.requestHandler);
+
+// Apply compression middleware with default settings
+app.use(compression());
+
+// Disable the 'X-Powered-By: Express' header
+app.disable("x-powered-by");
 
 // Apply Helmet middleware for enhanced security headers
 app.use(helmet());
@@ -44,12 +54,12 @@ app.use(morganMiddleware);
 // Rate Limiter: Limit requests to 100 requests per hour per IP address
 app.use(limiter);
 
-// Use after all other app middleware
-app.use(Honeybadger.errorHandler);
+// other middleware [routes]
+app.use("/", indexRouter);
 
 // Middleware to collect request metrics
 app.use(requestMetricsMiddleware);
 app.use(trackMetrics);
 
-// other middleware [routes]
-app.use("/", indexRouter);
+// Use after all other app middleware
+app.use(Honeybadger.errorHandler);
