@@ -2,16 +2,23 @@ import { Schema, model, Document } from "mongoose";
 
 interface ISession extends Document {
   userId: Schema.Types.ObjectId;
-  token: string;
+  refreshToken: string;
+  userAgent: string;
   expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-const sessionSchema = new Schema<ISession>({
-  userId: { type: Schema.Types.ObjectId, required: true, ref: "User" },
-  token: { type: String, required: true },
-  expiresAt: { type: Date, required: true },
-});
+const sessionSchema = new Schema<ISession>(
+  {
+    userId: { type: Schema.Types.ObjectId, required: true, ref: "User" },
+    refreshToken: { type: String, required: true },
+    userAgent: { type: String, required: true },
+    expiresAt: { type: Date, required: true },
+  },
+  { timestamps: true }
+);
 
 const Session = model<ISession>("Session", sessionSchema);
 
-export default Session;
+export { Session, ISession };

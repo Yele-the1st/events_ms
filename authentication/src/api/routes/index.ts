@@ -7,17 +7,15 @@ const router = express.Router();
 const base = `/api/v1`;
 
 router.get("/", (req: Request, res: Response) => {
-  res.send("Fibe authentication API");
+  res.send("Fibe authentication service API");
 });
 
 router.use(`${base}/auth`, authRoutes);
 
-// Prometheus middleware
-// Metrics endpoint
+// Prometheus middleware Metrics endpoint
 router.get("/metrics", metricsEndpoint);
 
-// Handle unknown routes
-// Catch-all route for undefined routes
+// Handle unknown routes Catch-all route for undefined routes
 router.all("*", (req: Request, res: Response) => {
   res.status(404).json({
     status: "fail",

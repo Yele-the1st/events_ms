@@ -10,4 +10,4 @@ const permissionSchema = new Schema<IPermission>({
 
 const Permission = model<IPermission>("Permission", permissionSchema);
 
-export default Permission;
+export { Permission, IPermission };
