@@ -1,9 +1,28 @@
 import mongoose from "mongoose";
 import { Permission, IPermission } from "../models";
 
+interface CreatePermissionParams {
+  name: string;
+}
+
+interface UpdatePermissionParams {
+  id: mongoose.Types.ObjectId;
+  updateFields: Partial<IPermission>;
+}
+
+interface DeleteByNameParams {
+  name: string;
+}
+
 class PermissionRepository {
-  // Create a new permission
-  async createPermission(name: string): Promise<IPermission> {
+  /**
+   * Creates a new permission.
+   * @param {CreatePermissionParams} params - Object containing the name of the permission.
+   * @returns {Promise<IPermission>} - The created permission.
+   */
+  async createPermission({
+    name,
+  }: CreatePermissionParams): Promise<IPermission> {
     const permission = new Permission({
       name,
     });
@@ -12,39 +31,64 @@ class PermissionRepository {
     return result;
   }
 
-  // Find a permission by ID
+  /**
+   * Finds a permission by ID.
+   * @param {mongoose.Types.ObjectId} id - The ID of the permission.
+   * @returns {Promise<IPermission | null>} - The found permission or null if not found.
+   */
   async findById(id: mongoose.Types.ObjectId): Promise<IPermission | null> {
     return await Permission.findById(id).exec();
   }
 
-  // Find a permission by name
+  /**
+   * Finds a permission by name.
+   * @param {string} name - The name of the permission.
+   * @returns {Promise<IPermission | null>} - The found permission or null if not found.
+   */
   async findByName(name: string): Promise<IPermission | null> {
     return await Permission.findOne({ name }).exec();
   }
 
-  // Update a permission by ID
-  async updatePermission(
-    id: mongoose.Types.ObjectId,
-    updateFields: Partial<IPermission>
-  ): Promise<IPermission | null> {
+  /**
+   * Updates a permission by ID.
+   * @param {UpdatePermissionParams} params - Object containing id and updateFields.
+   * @returns {Promise<IPermission | null>} - The updated permission or null if not found.
+   */
+  async updatePermission({
+    id,
+    updateFields,
+  }: UpdatePermissionParams): Promise<IPermission | null> {
     return await Permission.findByIdAndUpdate(id, updateFields, {
       new: true,
     }).exec();
   }
 
-  // Delete a permission by ID
+  /**
+   * Deletes a permission by ID.
+   * @param {mongoose.Types.ObjectId} id - The ID of the permission.
+   * @returns {Promise<IPermission | null>} - The deleted permission or null if not found.
+   */
   async deletePermission(
     id: mongoose.Types.ObjectId
   ): Promise<IPermission | null> {
     return await Permission.findByIdAndDelete(id).exec();
   }
 
-  // Delete a permission by name
-  async deleteByName(name: string): Promise<IPermission | null> {
+  /**
+   * Deletes a permission by name.
+   * @param {DeleteByNameParams} params - Object containing the name of the permission.
+   * @returns {Promise<IPermission | null>} - The deleted permission or null if not found.
+   */
+  async deleteByName({
+    name,
+  }: DeleteByNameParams): Promise<IPermission | null> {
     return await Permission.findOneAndDelete({ name }).exec();
   }
 
-  // Find all permissions
+  /**
+   * Finds all permissions.
+   * @returns {Promise<IPermission[]>} - List of all permissions.
+   */
   async findAll(): Promise<IPermission[]> {
     return await Permission.find().exec();
   }

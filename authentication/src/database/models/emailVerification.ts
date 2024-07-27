@@ -4,7 +4,6 @@ interface IEmailVerificationToken extends Document {
   userId: Schema.Types.ObjectId;
   token: string;
   expiresAt: Date;
-  createdAt: Date;
 }
 
 const emailVerificationTokenSchema: Schema<IEmailVerificationToken> =

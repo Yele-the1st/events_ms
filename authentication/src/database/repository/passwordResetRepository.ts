@@ -1,13 +1,36 @@
 import mongoose from "mongoose";
 import { PasswordReset, IPasswordReset } from "../models";
 
+interface CreatePasswordResetParams {
+  userId: mongoose.Types.ObjectId;
+  resetToken: string;
+  expiresAt: Date;
+}
+
+interface UpdatePasswordResetParams {
+  id: mongoose.Types.ObjectId;
+  updateFields: Partial<IPasswordReset>;
+}
+
+interface DeleteByUserIdParams {
+  userId: mongoose.Types.ObjectId;
+}
+
+interface DeleteExpiredParams {
+  now: Date;
+}
+
 class PasswordResetRepository {
-  // Create a new password reset entry
-  async createPasswordReset(
-    userId: mongoose.Types.ObjectId,
-    resetToken: string,
-    expiresAt: Date
-  ): Promise<IPasswordReset> {
+  /**
+   * Creates a new password reset entry.
+   * @param {CreatePasswordResetParams} params - Object containing userId, resetToken, and expiresAt.
+   * @returns {Promise<IPasswordReset>} - The created password reset entry.
+   */
+  async createPasswordReset({
+    userId,
+    resetToken,
+    expiresAt,
+  }: CreatePasswordResetParams): Promise<IPasswordReset> {
     const passwordReset = new PasswordReset({
       userId,
       resetToken,
@@ -18,51 +41,84 @@ class PasswordResetRepository {
     return result;
   }
 
-  // Find a password reset entry by ID
+  /**
+   * Finds a password reset entry by ID.
+   * @param {mongoose.Types.ObjectId} id - The ID of the password reset entry.
+   * @returns {Promise<IPasswordReset | null>} - The found password reset entry or null if not found.
+   */
   async findById(id: mongoose.Types.ObjectId): Promise<IPasswordReset | null> {
     return await PasswordReset.findById(id).exec();
   }
 
-  // Find a password reset entry by reset token
+  /**
+   * Finds a password reset entry by reset token.
+   * @param {string} resetToken - The reset token.
+   * @returns {Promise<IPasswordReset | null>} - The found password reset entry or null if not found.
+   */
   async findByResetToken(resetToken: string): Promise<IPasswordReset | null> {
     return await PasswordReset.findOne({ resetToken }).exec();
   }
 
-  // Find password reset entries by user ID
+  /**
+   * Finds password reset entries by user ID.
+   * @param {mongoose.Types.ObjectId} userId - The user ID.
+   * @returns {Promise<IPasswordReset[]>} - The found password reset entries.
+   */
   async findByUserId(
     userId: mongoose.Types.ObjectId
   ): Promise<IPasswordReset[]> {
     return await PasswordReset.find({ userId }).exec();
   }
 
-  // Update a password reset entry by ID
-  async updatePasswordReset(
-    id: mongoose.Types.ObjectId,
-    updateFields: Partial<IPasswordReset>
-  ): Promise<IPasswordReset | null> {
+  /**
+   * Updates a password reset entry by ID.
+   * @param {UpdatePasswordResetParams} params - Object containing id and updateFields.
+   * @returns {Promise<IPasswordReset | null>} - The updated password reset entry or null if not found.
+   */
+  async updatePasswordReset({
+    id,
+    updateFields,
+  }: UpdatePasswordResetParams): Promise<IPasswordReset | null> {
     return await PasswordReset.findByIdAndUpdate(id, updateFields, {
       new: true,
     }).exec();
   }
 
-  // Delete a password reset entry by ID
+  /**
+   * Deletes a password reset entry by ID.
+   * @param {mongoose.Types.ObjectId} id - The ID of the password reset entry.
+   * @returns {Promise<IPasswordReset | null>} - The deleted password reset entry or null if not found.
+   */
   async deletePasswordReset(
     id: mongoose.Types.ObjectId
   ): Promise<IPasswordReset | null> {
     return await PasswordReset.findByIdAndDelete(id).exec();
   }
 
-  // Delete password reset entries by user ID
-  async deleteByUserId(
-    userId: mongoose.Types.ObjectId
-  ): Promise<{ deletedCount?: number }> {
-    return await PasswordReset.deleteMany({ userId }).exec();
+  /**
+   * Deletes password reset entries by user ID.
+   * @param {DeleteByUserIdParams} params - Object containing userId.
+   * @returns {Promise<{ deletedCount?: number }>} - The number of deleted password reset entries.
+   */
+  async deleteByUserId({
+    userId,
+  }: DeleteByUserIdParams): Promise<{ deletedCount?: number }> {
+    const result = await PasswordReset.deleteMany({ userId }).exec();
+    return { deletedCount: result.deletedCount };
   }
 
-  // Delete expired password reset entries
-  async deleteExpired(): Promise<{ deletedCount?: number }> {
-    const now = new Date();
-    return await PasswordReset.deleteMany({ expiresAt: { $lt: now } }).exec();
+  /**
+   * Deletes expired password reset entries.
+   * @param {DeleteExpiredParams} params - Object containing the current date and time.
+   * @returns {Promise<{ deletedCount?: number }>} - The number of deleted password reset entries.
+   */
+  async deleteExpired({
+    now,
+  }: DeleteExpiredParams): Promise<{ deletedCount?: number }> {
+    const result = await PasswordReset.deleteMany({
+      expiresAt: { $lt: now },
+    }).exec();
+    return { deletedCount: result.deletedCount };
   }
 }
 

@@ -1,14 +1,38 @@
 import mongoose from "mongoose";
 import { Session, ISession } from "../models";
 
+interface CreateSessionParams {
+  userId: mongoose.Types.ObjectId;
+  refreshToken: string;
+  userAgent: string;
+  expiresAt: Date;
+}
+
+interface UpdateSessionParams {
+  id: mongoose.Types.ObjectId;
+  updateFields: Partial<ISession>;
+}
+
+interface DeleteSessionsByUserIdParams {
+  userId: mongoose.Types.ObjectId;
+}
+
+interface DeleteExpiredSessionsParams {
+  currentDate: Date;
+}
+
 class SessionRepository {
-  // Create a new session
-  async createSession(
-    userId: mongoose.Types.ObjectId,
-    refreshToken: string,
-    userAgent: string,
-    expiresAt: Date
-  ): Promise<ISession> {
+  /**
+   * Creates a new session.
+   * @param {CreateSessionParams} params - Object containing details for the new session.
+   * @returns {Promise<ISession>} - The created session.
+   */
+  async createSession({
+    userId,
+    refreshToken,
+    userAgent,
+    expiresAt,
+  }: CreateSessionParams): Promise<ISession> {
     const session = new Session({
       userId,
       refreshToken,
@@ -20,41 +44,80 @@ class SessionRepository {
     return result;
   }
 
-  // Find a session by ID
+  /**
+   * Finds a session by ID.
+   * @param {mongoose.Types.ObjectId} id - The ID of the session.
+   * @returns {Promise<ISession | null>} - The found session or null if not found.
+   */
   async findById(id: mongoose.Types.ObjectId): Promise<ISession | null> {
     return await Session.findById(id).exec();
   }
 
-  // Find sessions by user ID
+  /**
+   * Finds sessions by user ID.
+   * @param {mongoose.Types.ObjectId} userId - The ID of the user.
+   * @returns {Promise<ISession[]>} - List of sessions for the user.
+   */
   async findByUserId(userId: mongoose.Types.ObjectId): Promise<ISession[]> {
     return await Session.find({ userId }).exec();
   }
 
-  // Update a session's refresh token or other fields
-  async updateSession(
-    id: mongoose.Types.ObjectId,
-    updateFields: Partial<ISession>
-  ): Promise<ISession | null> {
+  /**
+   * Updates a session's refresh token or other fields.
+   * @param {UpdateSessionParams} params - Object containing ID and fields to update.
+   * @returns {Promise<ISession | null>} - The updated session or null if not found.
+   */
+  async updateSession({
+    id,
+    updateFields,
+  }: UpdateSessionParams): Promise<ISession | null> {
     return await Session.findByIdAndUpdate(id, updateFields, {
       new: true,
     }).exec();
   }
 
-  // Delete a session by ID
+  /**
+   * Deletes a session by ID.
+   * @param {mongoose.Types.ObjectId} id - The ID of the session.
+   * @returns {Promise<ISession | null>} - The deleted session or null if not found.
+   */
   async deleteSession(id: mongoose.Types.ObjectId): Promise<ISession | null> {
     return await Session.findByIdAndDelete(id).exec();
   }
 
-  // Delete sessions by user ID
-  async deleteSessionsByUserId(
-    userId: mongoose.Types.ObjectId
-  ): Promise<{ deletedCount?: number }> {
-    return await Session.deleteMany({ userId }).exec();
+  /**
+   * Deletes sessions by user ID.
+   * @param {DeleteSessionsByUserIdParams} params - Object containing the user ID.
+   * @returns {Promise<{ deletedCount?: number }>} - Object containing the count of deleted sessions.
+   */
+  async deleteSessionsByUserId({
+    userId,
+  }: DeleteSessionsByUserIdParams): Promise<{ deletedCount?: number }> {
+    const result = await Session.deleteMany({ userId }).exec();
+    return { deletedCount: result.deletedCount };
   }
 
-  // Find sessions by refresh token
+  /**
+   * Finds a session by refresh token.
+   * @param {string} refreshToken - The refresh token of the session.
+   * @returns {Promise<ISession | null>} - The found session or null if not found.
+   */
   async findByRefreshToken(refreshToken: string): Promise<ISession | null> {
     return await Session.findOne({ refreshToken }).exec();
+  }
+
+  /**
+   * Deletes expired sessions.
+   * @param {DeleteExpiredSessionsParams} params - Object containing the current date.
+   * @returns {Promise<{ deletedCount?: number }>} - Object containing the count of deleted sessions.
+   */
+  async deleteExpiredSessions({
+    currentDate,
+  }: DeleteExpiredSessionsParams): Promise<{ deletedCount?: number }> {
+    const result = await Session.deleteMany({
+      expiresAt: { $lt: currentDate },
+    }).exec();
+    return { deletedCount: result.deletedCount };
   }
 }
 
