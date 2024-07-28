@@ -19,7 +19,7 @@ const configureLocalStrategy = () => {
               message: "Incorrect email or password.",
             });
 
-          const isMatch = await user.matchPassword(password);
+          const isMatch = await user.comparePassword(password);
           if (!isMatch)
             return done(null, false, {
               message: "Incorrect email or password.",
@@ -27,10 +27,9 @@ const configureLocalStrategy = () => {
 
           const userInfo = {
             _id: user._id,
-            username: user.username,
             email: user.email,
             role: user.roles,
-            verified: user.isVerified,
+            verified: user.emailVerified,
           };
           return done(null, userInfo);
         } catch (err) {

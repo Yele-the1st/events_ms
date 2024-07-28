@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 
 import { metricsEndpoint } from "../../config/prometheus/metrics";
 import authRoutes from "./authRoutes";
+import userRoutes from "./userRoutes";
 
 const router = express.Router();
 const base = `/api/v1`;
@@ -11,6 +12,7 @@ router.get("/", (req: Request, res: Response) => {
 });
 
 router.use(`${base}/auth`, authRoutes);
+router.use(`${base}/auth`, userRoutes);
 
 // Prometheus middleware Metrics endpoint
 router.get("/metrics", metricsEndpoint);

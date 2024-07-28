@@ -4,7 +4,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import { IUser } from "../database/models";
 import { UserRepository } from "../database/repository";
 import EmailVerificationTokenService from "./emailVerificationService";
-import PasswordResetService from "./PasswordResetService";
+import PasswordResetService from "./passwordResetService";
 import speakeasy from "speakeasy";
 
 /**
@@ -38,6 +38,11 @@ class UserService {
       mfaEnabled: false,
       emailVerified: false,
     });
+
+    await this.emailVerificationTokenService.createActivationToken(
+      user._id as mongoose.Types.ObjectId
+    );
+
     return user;
   }
 
@@ -174,6 +179,66 @@ class UserService {
   }
 
   /**
+   * Resets the user's password using a token.
+   * @param {string} resetToken - The password reset token.
+   * @param {string} newPassword - The new password to set.
+   * @returns {Promise<void>} - No return value.
+   */
+  async resetPassword(resetToken: string, newPassword: string): Promise<void> {
+    const passwordReset =
+      await this.passwordResetService.findPasswordResetByToken(resetToken);
+    if (!passwordReset) {
+      throw new Error("Invalid or expired reset token");
+    }
+
+    const user = await this.findUserById(
+      passwordReset.userId as unknown as mongoose.Types.ObjectId
+    );
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    await this.passwordResetService.deletePasswordReset(
+      passwordReset._id as mongoose.Types.ObjectId
+    );
+  }
+
+  /**
+   * Updates the user's password.
+   * @param {UpdatePasswordParams} params - Object containing userId, oldPassword, and newPassword.
+   * @returns {Promise<void>} - No return value.
+   */
+  async updatePassword(params: UpdatePasswordParams): Promise<void> {
+    const user = await this.findUserById(params.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const isMatch = await user.comparePassword(params.oldPassword);
+    if (!isMatch) {
+      throw new Error("Incorrect old password");
+    }
+
+    user.password = await bcrypt.hash(params.newPassword, 10);
+    await user.save();
+  }
+
+  /**
+   * Generates an authentication token for the given user.
+   * @param {IUser} user - The user for whom to generate the token.
+   * @returns {string} - The generated JWT token.
+   */
+  generateAuthToken(user: IUser): string {
+    return jwt.sign(
+      { id: user._id, roles: user.roles },
+      process.env.JWT_SECRET!,
+      { expiresIn: "1h" }
+    );
+  }
+
+  /**
    * Enables MFA for the user with the given ID.
    * @param {mongoose.Types.ObjectId} userId - The ID of the user to enable MFA for.
    * @returns {Promise<{ secret: string; otpauth_url?: string } | null>} - Object containing the secret and otpauth URL if successful.
@@ -251,6 +316,15 @@ interface UpdateUserParams {
 interface AuthenticateUserParams {
   email: string;
   password: string;
+}
+
+/**
+ * Parameters for authenticating a user.
+ */
+interface UpdatePasswordParams {
+  userId: mongoose.Types.ObjectId;
+  oldPassword: string;
+  newPassword: string;
 }
 
 /**

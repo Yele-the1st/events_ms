@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { IEmailVerificationToken } from "../database/models";
 import { EmailVerificationTokenRepository } from "../database/repository";
+import crypto from "crypto";
 
 /**
  * Service for managing email verification tokens.
@@ -103,6 +104,25 @@ class EmailVerificationTokenService {
     return await this.emailVerificationTokenRepository.deleteExpiredTokens({
       currentDate: now,
     });
+  }
+
+  /**
+   * Creates a random activation OTP token for a user.
+   * @param {mongoose.Types.ObjectId} userId - The ID of the user to create the token for.
+   * @returns {Promise<IEmailVerificationToken>} - The created email verification token.
+   */
+  async createActivationToken(
+    userId: mongoose.Types.ObjectId
+  ): Promise<IEmailVerificationToken> {
+    const token = crypto.randomBytes(3).toString("hex");
+    const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
+    const emailVerificationToken =
+      await this.emailVerificationTokenRepository.createEmailVerificationToken({
+        userId,
+        token,
+        expiresAt,
+      });
+    return emailVerificationToken;
   }
 }
 

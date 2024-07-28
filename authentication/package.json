@@ -31,6 +31,7 @@
     "express-session": "^1.18.0",
     "helmet": "^7.1.0",
     "honeybadger": "^1.4.1",
+    "http-status-codes": "^2.3.0",
     "ioredis": "^5.4.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.5.0",

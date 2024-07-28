@@ -1,69 +1,61 @@
-import { Request, Response } from "express";
+// src/middleware/errorMiddleware.ts
+import { Request, Response, NextFunction } from "express";
 import ErrorHandler from "../../utils/ErrorHandler";
 import logger from "../../config/winston/logger";
 
 // Define a custom error interface
 interface CustomError extends Error {
   statusCode?: number;
-  status?: number;
+  status?: string; // Update this line
   code?: number | string;
   keyValue?: Record<string, unknown>;
   path?: string;
   errors?: { [key: string]: { message: string } };
+  details?: { message: string }[];
 }
 
 // Error handling middleware
 export const ErrorMiddleware = (
   err: CustomError,
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction // eslint-disable-line @typescript-eslint/no-unused-vars
 ) => {
-  // Default status code and message
-  const statusCode = err.statusCode || err.status || 500;
-  const errorMessage = err.message || "Internal Server Error";
+  const statusCode = err.statusCode || 500;
+  let errorMessage = err.message || "Internal Server Error";
 
   // Handle specific error types
   if (err.name === "CastError") {
-    // Invalid MongoDB ID format
-    const message = `Resource not found. Invalid: ${err.path}`;
-    err = new ErrorHandler(message, 400);
+    errorMessage = `Resource not found. Invalid: ${err.path}`;
+    err = new ErrorHandler(errorMessage, 400);
   } else if (err.code === 11000) {
-    // Duplicate key error
     const duplicateField = Object.keys(err.keyValue || {}).join(", ");
-    const message = `Duplicate field value entered: ${duplicateField}`;
-    err = new ErrorHandler(message, 400);
+    errorMessage = `Duplicate field value entered: ${duplicateField}`;
+    err = new ErrorHandler(errorMessage, 400);
   } else if (err.name === "ValidationError") {
-    // Mongoose validation error
-    const message = `Validation Error: ${Object.values(err.errors || {})
+    errorMessage = `Validation Error: ${Object.values(err.errors || {})
       .map((e) => e.message)
       .join(", ")}`;
-    err = new ErrorHandler(message, 400);
+    err = new ErrorHandler(errorMessage, 400);
   } else if (err.name === "JsonWebTokenError") {
-    // JWT errors
-    const message = "Invalid JSON Web Token. Please authenticate.";
-    err = new ErrorHandler(message, 401);
+    errorMessage = "Invalid JSON Web Token. Please authenticate.";
+    err = new ErrorHandler(errorMessage, 401);
   } else if (err.name === "TokenExpiredError") {
-    // JWT expired error
-    const message = "JSON Web Token has expired. Please log in again.";
-    err = new ErrorHandler(message, 401);
+    errorMessage = "JSON Web Token has expired. Please log in again.";
+    err = new ErrorHandler(errorMessage, 401);
   } else if (err.name === "SyntaxError" && err.message.includes("JSON")) {
-    // Invalid JSON payload
-    const message = "Invalid JSON payload.";
-    err = new ErrorHandler(message, 400);
+    errorMessage = "Invalid JSON payload.";
+    err = new ErrorHandler(errorMessage, 400);
   } else if (err.code === "ENOENT") {
-    // File not found error
-    const message = "File not found.";
-    err = new ErrorHandler(message, 404);
+    errorMessage = "File not found.";
+    err = new ErrorHandler(errorMessage, 404);
   } else if (statusCode === 403) {
-    // Forbidden access
-    const message = "Forbidden access.";
-    err = new ErrorHandler(message, 403);
+    errorMessage = "Forbidden access.";
+    err = new ErrorHandler(errorMessage, 403);
   } else if (statusCode === 404) {
-    // Resource not found
-    const message = "Resource not found.";
-    err = new ErrorHandler(message, 404);
+    errorMessage = "Resource not found.";
+    err = new ErrorHandler(errorMessage, 404);
   } else {
-    // For other types of errors, use default handling
     err = new ErrorHandler(errorMessage, statusCode);
   }
 
@@ -74,5 +66,6 @@ export const ErrorMiddleware = (
   res.status(statusCode).json({
     success: false,
     message: err.message,
+    details: err.details || undefined,
   });
 };

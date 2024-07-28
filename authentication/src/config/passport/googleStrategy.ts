@@ -47,7 +47,6 @@ const configureGoogleStrategy = () => {
             if (user) {
               try {
                 const constants = {
-                  username: user.username,
                   verification_link: `${config.LIVE_BASE_URL}/api/v1/users/verify-email?token=${user.email}`,
                   password: tempPassword,
                 };

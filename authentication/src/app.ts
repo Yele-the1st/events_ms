@@ -62,8 +62,8 @@ app.use("/", indexRouter);
 app.use(requestMetricsMiddleware);
 app.use(trackMetrics);
 
-// Error handling middleware (make sure it's last)
-app.use(ErrorMiddleware);
-
 // Honeybadger error handler (optional if required)
 app.use(Honeybadger.errorHandler);
+
+// Error handling middleware (make sure it's last)
+app.use(ErrorMiddleware);
