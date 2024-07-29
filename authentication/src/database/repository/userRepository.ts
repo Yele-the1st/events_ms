@@ -9,6 +9,13 @@ interface CreateUserParams {
   mfaEnabled?: boolean;
   mfaSecret?: string;
 }
+interface CreateUserByMagicLinkParams {
+  email: string;
+  roles?: string[];
+  emailVerified?: boolean;
+  mfaEnabled?: boolean;
+  mfaSecret?: string;
+}
 
 interface UpdateUserParams {
   id: mongoose.Types.ObjectId;
@@ -37,6 +44,30 @@ class UserRepository {
     const user = new User({
       email,
       password,
+      roles,
+      emailVerified,
+      mfaEnabled,
+      mfaSecret,
+    });
+
+    const result = await user.save();
+    return result;
+  }
+
+  /**
+   * Creates a new user.
+   * @param {CreateUserByMagicLinkParams} params - Object containing details for the new user.
+   * @returns {Promise<IUser>} - The created user.
+   */
+  async createUserByMagicLink({
+    email,
+    roles = ["user"],
+    emailVerified = false,
+    mfaEnabled = false,
+    mfaSecret,
+  }: CreateUserByMagicLinkParams): Promise<IUser> {
+    const user = new User({
+      email,
       roles,
       emailVerified,
       mfaEnabled,

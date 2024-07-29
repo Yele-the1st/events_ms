@@ -15,7 +15,7 @@ export const validateData =
           message: `${issue.path.join(".")}: ${issue.message}`,
         }));
         const validationError = new ErrorHandler(
-          errorMessages[0].message,
+          "Invalid data",
           400,
           errorMessages
         );

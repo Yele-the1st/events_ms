@@ -47,6 +47,28 @@ class UserService {
   }
 
   /**
+   * Creates a new user by Magic Link.
+   * @param {CreateUserByMagicLinkParams} params - Object containing email for the new user.
+   * @returns {Promise<IUser>} - The created user.
+   */
+  async createUserByMagicLink(
+    params: CreateUserByMagicLinkParams
+  ): Promise<IUser> {
+    const user = await this.userRepository.createUserByMagicLink({
+      email: params.email,
+      roles: ["user"],
+      mfaEnabled: false,
+      emailVerified: false,
+    });
+
+    await this.emailVerificationTokenService.createActivationToken(
+      user._id as mongoose.Types.ObjectId
+    );
+
+    return user;
+  }
+
+  /**
    * Finds a user by ID.
    * @param {mongoose.Types.ObjectId} id - The ID of the user to be found.
    * @returns {Promise<IUser | null>} - The found user or null if not found.
@@ -333,6 +355,10 @@ interface UpdatePasswordParams {
 interface VerifyMFATokenParams {
   userId: mongoose.Types.ObjectId;
   token: string;
+}
+
+interface CreateUserByMagicLinkParams {
+  email: string;
 }
 
 export default UserService;

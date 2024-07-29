@@ -14,6 +14,9 @@ const userController = new UserController();
 // Create a new user
 router.post("/users", validateData(CreateUserDto), userController.createUser);
 
+// Create a new user with Magic link (Passwordless Authentication)
+router.post("/users/ml", userController.createUserByMagicLink);
+
 // Get a user by ID
 router.get("/users/:id", userController.getUserById);
 

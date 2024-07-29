@@ -23,6 +23,7 @@ export const ErrorMiddleware = (
 ) => {
   const statusCode = err.statusCode || 500;
   let errorMessage = err.message || "Internal Server Error";
+  const details = err.details;
 
   // Handle specific error types
   if (err.name === "CastError") {
@@ -56,7 +57,7 @@ export const ErrorMiddleware = (
     errorMessage = "Resource not found.";
     err = new ErrorHandler(errorMessage, 404);
   } else {
-    err = new ErrorHandler(errorMessage, statusCode);
+    err = new ErrorHandler(errorMessage, statusCode, details);
   }
 
   // Log the error for debugging

@@ -20,7 +20,7 @@ interface IUser extends Document {
 const userSchema: Schema<IUser> = new Schema(
   {
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    password: { type: String, required: false },
     emailVerified: { type: Boolean, default: false },
     roles: { type: [String], default: ["user"] },
     mfaEnabled: { type: Boolean, default: false },
@@ -30,7 +30,9 @@ const userSchema: Schema<IUser> = new Schema(
 );
 
 userSchema.pre<IUser>("save", async function (next) {
+  if (!this.password) return next(); // Skip if there's no password
   if (!this.isModified("password")) return next();
+
   const salt = await bcrypt.genSalt(SALT_ROUNDS);
   this.password = await bcrypt.hash(this.password, salt);
   next();

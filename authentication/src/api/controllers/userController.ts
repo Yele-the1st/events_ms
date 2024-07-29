@@ -34,6 +34,27 @@ class UserController {
   };
 
   /**
+   * Handles the creation of a new user by Magic Link.
+   * @param req - Express Request object containing email and password in the body.
+   * @param res - Express Response object.
+   * @param next - Express NextFunction for passing control to the next middleware.
+   */
+  createUserByMagicLink = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const { email } = req.body;
+      const user = await this.userService.createUserByMagicLink({ email });
+
+      res.status(201).json(user);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
    * Handles fetching a user by their ID.
    * @param req - Express Request object with user ID in the URL params.
    * @param res - Express Response object.
