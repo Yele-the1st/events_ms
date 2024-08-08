@@ -1,29 +1,53 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export interface INotification extends Document {
-  type: string;
-  recipient: string;
-  subject: string;
-  message: string;
-  status: string;
+interface INotification extends Document {
+  type: "email" | "sms";
+  user: mongoose.Types.ObjectId;
+  template: mongoose.Types.ObjectId;
+  status: "sent" | "failed";
+  deliveryInfo: {
+    email?: {
+      messageId: string;
+      status: string;
+      provider: string;
+    };
+    sms?: {
+      messageId: string;
+      status: string;
+      provider: string;
+    };
+  };
   scheduledTime?: Date;
-  createdAt: Date;
-  updatedAt: Date;
+  sentTime: Date;
 }
 
 const NotificationSchema: Schema = new Schema(
   {
     type: { type: String, required: true },
-    recipient: { type: String, required: true },
-    subject: { type: String, required: true },
-    message: { type: String, required: true },
-    status: { type: String, required: true, default: "pending" },
-    scheduledTime: { type: Date, default: null },
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    template: { type: Schema.Types.ObjectId, ref: "Template", required: true },
+    status: { type: String, enum: ["sent", "failed"], required: true },
+    deliveryInfo: {
+      email: {
+        messageId: { type: String },
+        status: { type: String },
+        provider: { type: String },
+      },
+      sms: {
+        messageId: { type: String },
+        status: { type: String },
+        provider: { type: String },
+      },
+    },
+    scheduledTime: { type: Date },
+    sentTime: { type: Date, required: true },
   },
   { timestamps: true }
 );
 
-export default mongoose.model<INotification>(
+const Notification = mongoose.model<INotification>(
   "Notification",
   NotificationSchema
 );
+
+export default Notification;
