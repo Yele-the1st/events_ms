@@ -1,27 +1,16 @@
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
-import { NotificationService, Recipient, NotificationResponse } from "../init";
+import { NotificationResponse, Recipient } from "../types";
 
-class SESEmailService extends NotificationService {
+class SESEmailService {
   private sesClient: SESClient;
-  private awsAccessKeyId: string;
-  private awsSecretAccessKey: string;
-  private awsRegion: string;
 
-  constructor(
-    awsAccessKeyId: string,
-    awsSecretAccessKey: string,
-    awsRegion: string
-  ) {
-    super();
-    this.awsAccessKeyId = awsAccessKeyId;
-    this.awsSecretAccessKey = awsSecretAccessKey;
-    this.awsRegion = awsRegion;
+  constructor() {
     this.sesClient = new SESClient({
       credentials: {
-        accessKeyId: this.awsAccessKeyId,
-        secretAccessKey: this.awsSecretAccessKey,
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
       },
-      region: this.awsRegion,
+      region: process.env.AWS_REGION!,
     });
   }
 
@@ -29,8 +18,8 @@ class SESEmailService extends NotificationService {
     to: Recipient,
     subject: string,
     body: string,
-    sourceEmail: string,
-    replyToAddresses: string[]
+    sourceEmail: string = process.env.SES_SOURCE_EMAIL!, // Default to environment variable
+    replyToAddresses: string[] = []
   ): Promise<NotificationResponse | null> {
     const params = {
       Source: sourceEmail,
@@ -65,10 +54,6 @@ class SESEmailService extends NotificationService {
       console.error("Error sending email:", error);
       return null;
     }
-  }
-
-  async sendSMS(): Promise<NotificationResponse | null> {
-    throw new Error("AWS SES does not support SMS");
   }
 }
 

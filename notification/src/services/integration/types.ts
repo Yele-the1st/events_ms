@@ -11,18 +11,16 @@ export interface NotificationResponse {
   provider: string;
 }
 
-// Abstract class for notification services
-export abstract class NotificationService {
-  abstract sendEmail(
-    to: Recipient, // Use the general Recipient interface
+export interface EmailService {
+  sendEmail(
+    to: Recipient,
     subject: string,
     body: string,
-    sourceEmail?: string, // Optional parameter
-    replyToAddresses?: string[] // Optional parameter
+    sourceEmail?: string,
+    replyToAddresses?: string[]
   ): Promise<NotificationResponse | null>;
+}
 
-  abstract sendSMS(
-    to: Recipient, // Use the general Recipient interface
-    body: string
-  ): Promise<NotificationResponse | null>;
+export interface SMSService {
+  sendSMS(to: Recipient, body: string): Promise<NotificationResponse | null>;
 }

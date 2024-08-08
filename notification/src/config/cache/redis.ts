@@ -9,12 +9,14 @@ const host = config.REDIS_HOST;
 const port = config.REDIS_PORT!;
 const password = config.REDIS_PASSWORD;
 
-// Create a new Redis instance
-const redisClient = new Redis({
+export const redisConfig = {
   host: host || "localhost", // Redis server address
   port: parseInt(port, 10) || 6379, // Redis server port
   password: password, // Redis server password if set
-});
+};
+
+// Create a new Redis instance
+const redisClient = new Redis(redisConfig);
 
 redisClient.on("connect", () => logger.info("Cache is connecting"));
 redisClient.on("ready", () => logger.info("Cache is ready"));
