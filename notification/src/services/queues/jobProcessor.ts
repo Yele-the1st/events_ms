@@ -1,27 +1,34 @@
-// import { EmailDeliveryService } from '../delivery/emailDeliveryService';
-// import { SmsDeliveryService } from '../delivery/smsDeliveryService';
-// import { NotificationService } from '../notification/notificationService';
+import Bull from "bull";
+import logger from "../../config/winston/logger";
 
-// const emailDeliveryService = new EmailDeliveryService();
-// const smsDeliveryService = new SmsDeliveryService();
-// const notificationService = new NotificationService();
+// Import the email and OTP sending functions
 
-// export async function processNotificationJob(job: any) {
-//   const { userId, templateId, provider, type } = job.data;
+export type QueueName = "notification" | "email"; // Add other queue names here
 
-//   const user = await notificationService.viewNotification(userId);
-//   const template = await notificationService.viewNotification(templateId);
+// Define a mapping object for processors
+const processors: Record<QueueName, (job: Bull.Job) => Promise<void>> = {
+  notification: async (job: Bull.Job) => {
+    const { recipient, otp } = job.data;
+    try {
+      //   await sendOtpEmail(recipient, otp);
+      logger.info(`OTP sent to ${recipient}`);
+    } catch (error) {
+      logger.error(`Failed to send OTP to ${recipient}: ${error}`);
+    }
+  },
+  email: async (job: Bull.Job) => {
+    const { recipient, subject, body } = job.data;
+    try {
+      //   await sendEmail(recipient, subject, body);
+      logger.info(`Email sent to ${recipient}`);
+    } catch (error) {
+      logger.error(`Failed to send email to ${recipient}: ${error}`);
+    }
+  },
+  // Add other queue processors here
+};
 
-//   if (!user || !template) {
-//     throw new Error('User or template not found');
-//   }
-
-//   const emailBody = template.body; // Customize this if needed
-//   const deliveryService = type === 'email' ? emailDeliveryService : smsDeliveryService;
-
-//   try {
-//     await deliveryService.sendEmail(user.email, template.subject, emailBody, provider);
-//   } catch (error) {
-//     console.error('Error sending notification:', error);
-//   }
-// }
+export function getProcessorForQueue(queueName: QueueName) {
+  return processors[queueName] || null;
+}
+//
