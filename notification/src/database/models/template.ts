@@ -1,24 +1,26 @@
-import mongoose, { Document, Schema } from "mongoose";
+import { Schema, model, Document } from "mongoose";
 
-interface ITemplate extends Document {
+export interface Template extends Document {
   name: string;
   subject: string;
   body: string;
-  type: string;
+  channel: "email" | "sms"; // Specify the channels you're supporting
+  createdBy: Schema.Types.ObjectId;
+  updatedBy?: Schema.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const TemplateSchema: Schema = new Schema(
+const TemplateSchema = new Schema<Template>(
   {
     name: { type: String, required: true },
     subject: { type: String, required: true },
     body: { type: String, required: true },
-    type: { type: String, enum: ["email", "sms"], required: true },
+    channel: { type: String, enum: ["email", "sms"], required: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
 );
 
-const Template = mongoose.model<ITemplate>("Template", TemplateSchema);
-
-export default Template;
+export const TemplateModel = model<Template>("Template", TemplateSchema);

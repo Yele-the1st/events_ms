@@ -19,6 +19,7 @@
     "aws-cdk": "^2.150.0",
     "aws-sdk": "^2.1664.0",
     "bull": "^4.16.0",
+    "bullmq": "^5.12.4",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "dotenv": "^16.4.5",

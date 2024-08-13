@@ -1,53 +1,43 @@
-import mongoose, { Document, Schema } from "mongoose";
+import { Schema, model, Document } from "mongoose";
 
-interface INotification extends Document {
-  type: "email" | "sms";
-  user: mongoose.Types.ObjectId;
-  template: mongoose.Types.ObjectId;
-  status: "sent" | "failed";
-  deliveryInfo: {
-    email?: {
-      messageId: string;
-      status: string;
-      provider: string;
-    };
-    sms?: {
-      messageId: string;
-      status: string;
-      provider: string;
-    };
-  };
-  scheduledTime?: Date;
-  sentTime: Date;
+export interface Notification extends Document {
+  userId: Schema.Types.ObjectId;
+  templateId: Schema.Types.ObjectId;
+  channel: "email" | "sms"; // Specify the channels you're supporting
+  status: "pending" | "sent" | "failed"; // Possible statuses
+  scheduledAt: Date;
+  sentAt?: Date;
+  content: string;
+  metadata?: Record<string, unknown>; // Use `unknown` instead of `any`
+  createdBy?: Schema.Types.ObjectId; // Optional field to track who created the notification
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-const NotificationSchema: Schema = new Schema(
+const NotificationSchema = new Schema<Notification>(
   {
-    type: { type: String, required: true },
-    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    template: { type: Schema.Types.ObjectId, ref: "Template", required: true },
-    status: { type: String, enum: ["sent", "failed"], required: true },
-    deliveryInfo: {
-      email: {
-        messageId: { type: String },
-        status: { type: String },
-        provider: { type: String },
-      },
-      sms: {
-        messageId: { type: String },
-        status: { type: String },
-        provider: { type: String },
-      },
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    templateId: {
+      type: Schema.Types.ObjectId,
+      ref: "Template",
+      required: true,
     },
-    scheduledTime: { type: Date },
-    sentTime: { type: Date, required: true },
+    channel: { type: String, enum: ["email", "sms"], required: true },
+    status: {
+      type: String,
+      enum: ["pending", "sent", "failed"],
+      required: true,
+    },
+    scheduledAt: { type: Date, required: true },
+    sentAt: { type: Date },
+    content: { type: String, required: true },
+    metadata: { type: Schema.Types.Mixed },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User" }, // Optional field
   },
   { timestamps: true }
 );
 
-const Notification = mongoose.model<INotification>(
+export const NotificationModel = model<Notification>(
   "Notification",
   NotificationSchema
 );
-
-export default Notification;

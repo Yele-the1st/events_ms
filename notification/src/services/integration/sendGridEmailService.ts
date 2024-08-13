@@ -1,5 +1,6 @@
 import sgMail from "@sendgrid/mail";
 import { Recipient, NotificationResponse } from "./types";
+import logger from "../../config/winston/logger";
 
 export class SendGridEmailService {
   constructor() {
@@ -30,13 +31,9 @@ export class SendGridEmailService {
         provider: "SendGrid",
       };
     } catch (error) {
-      console.error("Error sending email with SendGrid:", error);
+      logger.error("Error sending email with SendGrid:", error);
       return null;
     }
-  }
-
-  async sendSMS(): Promise<NotificationResponse | null> {
-    throw new Error("SendGrid does not support SMS");
   }
 }
 

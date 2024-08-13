@@ -1,5 +1,6 @@
 import { Twilio } from "twilio";
 import { Recipient, NotificationResponse } from "./types";
+import logger from "../../config/winston/logger";
 
 export class TwilioSMSService {
   private twilioClient: Twilio;
@@ -28,7 +29,7 @@ export class TwilioSMSService {
         provider: "Twilio",
       };
     } catch (error) {
-      console.error("Error sending SMS with Twilio:", error);
+      logger.error("Error sending SMS with Twilio:", error);
       return null;
     }
   }

@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { Recipient, NotificationResponse } from "./types";
+import logger from "../../config/winston/logger";
 
 export class NodemailerEmailService {
   private transporter;
@@ -41,13 +42,9 @@ export class NodemailerEmailService {
         provider: "Nodemailer",
       };
     } catch (error) {
-      console.error("Error sending email with Nodemailer:", error);
+      logger.error("Error sending email with Nodemailer:", error);
       return null;
     }
-  }
-
-  async sendSMS(): Promise<NotificationResponse | null> {
-    throw new Error("Nodemailer does not support SMS");
   }
 }
 
