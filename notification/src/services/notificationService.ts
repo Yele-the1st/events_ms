@@ -13,40 +13,63 @@ export class NotificationService {
   }
 
   /**
-   * Creates and schedules a notification.
+   * Creates and schedules a notification for multiple recipients.
+   * @param {Array<{userId: mongoose.Types.ObjectId; email: string}>} recipients - Array of recipients, each containing userId and email.
    * @param {string} templateName - The name of the template to use.
-   * @param {mongoose.Types.ObjectId} userId - The ID of the user to notify.
-   * @param {Date} scheduledAt - The date and time when the notification should be sent.
+   * @param {"email"} channel - The channel for the notification.
    * @param {Record<string, string>} data - The data to replace placeholders in the template.
-   * @param {'email' | 'sms'} channel - The channel for the notification.
-   * @returns {Promise<Notification>} - The created notification.
+   * @param {Date} scheduledAt - The date and time when the notification should be sent.
+   * @param {"user" | "system"} createdByType - Indicates whether the notification was created by "user" or "system".
+   * @param {mongoose.Types.ObjectId} [createdBy] - Optional. The ID of the user who created the notification.
+   * @param {string} [sourceEmail] - The source email address for sending the email.
+   * @param {string[]} [replyToAddresses] - Optional. Array of reply-to email addresses.
+   * @returns {Promise<Notification>} - The created notification document.
    */
   async createAndScheduleNotification(
+    recipients: { userId: mongoose.Types.ObjectId; email: string }[],
     templateName: string,
-    userId: mongoose.Types.ObjectId,
-    scheduledAt: Date,
+    channel: "email",
     data: Record<string, string>,
-    channel: "email" | "sms",
+    scheduledAt: Date,
+    createdByType: "user" | "system",
     createdBy?: mongoose.Types.ObjectId
   ): Promise<Notification> {
-    const template = await this.templateService.getTemplate(templateName);
+    try {
+      // Fetch the template
+      const template = await this.templateService.getTemplate(templateName);
+      if (!template) {
+        throw new Error(`Template ${templateName} not found`);
+      }
 
-    // Replace placeholders in the template body
-    const content = this.templateService.replacePlaceholders(template, data);
+      // Replace placeholders in the template body with data
+      const content = this.templateService.replacePlaceholders(template, data);
 
-    // Create notification
-    const notification = await this.notificationRepository.createNotification({
-      userId,
-      createdBy,
-      templateId: template._id as mongoose.Types.ObjectId,
-      channel,
-      status: "pending",
-      scheduledAt,
-      content,
-      metadata: data,
-    });
+      // Prepare recipient details for the notification
+      const recipientDetails = recipients.map(({ userId, email }) => ({
+        userId,
+        email,
+        status: "pending" as const, // Initial status for the recipient
+      }));
 
-    return notification;
+      // Create the notification object
+      const notification = await this.notificationRepository.createNotification(
+        {
+          title: templateName, // Assuming templateName is used as the title
+          content,
+          createdByType,
+          createdBy, // Optional if createdBy is provided
+          templateId: template._id as mongoose.Types.ObjectId, // Use the template ID
+          channel,
+          status: "pending", // Default status
+          scheduledAt,
+          recipients: recipientDetails, // Attach recipients to the notification
+        }
+      );
+
+      return notification;
+    } catch (error) {
+      throw new Error(`Failed to create and schedule notification: ${error}`);
+    }
   }
 
   /**
@@ -94,7 +117,7 @@ export class NotificationService {
    * @returns {Promise<Notification[]>} - The list of notifications.
    */
   async findNotificationsByStatus(
-    status: "pending" | "sent" | "failed"
+    status: "pending" | "queued" | "processing" | "completed"
   ): Promise<Notification[]> {
     return await this.notificationRepository.findByStatus(status);
   }

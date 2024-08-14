@@ -1,5 +1,5 @@
 import { Twilio } from "twilio";
-import { Recipient, NotificationResponse } from "./types";
+import { NotificationResponse, SendSMSOptions } from "./types";
 import logger from "../../config/winston/logger";
 
 export class TwilioSMSService {
@@ -12,10 +12,9 @@ export class TwilioSMSService {
     );
   }
 
-  async sendSMS(
-    to: Recipient,
-    body: string
-  ): Promise<NotificationResponse | null> {
+  async sendSMS(options: SendSMSOptions): Promise<NotificationResponse | null> {
+    const { to, body } = options;
+
     try {
       const message = await this.twilioClient.messages.create({
         body: body,

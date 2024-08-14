@@ -1,5 +1,5 @@
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
-import { NotificationResponse, Recipient } from "../types";
+import { NotificationResponse, SendEmailOptions } from "../types";
 
 class SESEmailService {
   private sesClient: SESClient;
@@ -15,12 +15,16 @@ class SESEmailService {
   }
 
   async sendEmail(
-    to: Recipient,
-    subject: string,
-    body: string,
-    sourceEmail: string = process.env.SES_SOURCE_EMAIL!, // Default to environment variable
-    replyToAddresses: string[] = []
+    options: SendEmailOptions
   ): Promise<NotificationResponse | null> {
+    const {
+      to,
+      subject,
+      body,
+      sourceEmail = process.env.SMTP_USER!,
+      replyToAddresses = [],
+    } = options;
+
     const params = {
       Source: sourceEmail,
       Destination: {

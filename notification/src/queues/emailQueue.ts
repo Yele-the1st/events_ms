@@ -1,6 +1,8 @@
 import { Queue, Worker, Job, QueueEvents, JobsOptions } from "bullmq";
 import logger from "../config/winston/logger";
 import { redisConfig } from "../config/cache/redis";
+import { getDeliveryService } from "../services/integration/getDeliveryService";
+import mongoose from "mongoose";
 
 // Configuration constants
 const MAX_WORKERS = 5; // Maximum number of workers to run concurrently
@@ -9,18 +11,25 @@ const THRESHOLD = 10; // Minimum number of jobs required to add a new worker
 const CHECK_INTERVAL = 60000; // Interval in milliseconds to check the queue [1 minute]
 
 // Define job data and result types for the "notification" queue
-export interface NotificationJobData {
-  userId: string;
+export interface EmailNotificationJobData {
+  userId?: string;
   message: string;
+  type: "email" | "sms"; // Indicate the type of notification
+  provider: "SENDGRID" | "SES" | "NODEMAILER" | "Twilio" | "SNS"; // Indicate the service provider
+  recipient: { email?: string; phoneNumber?: string }; // Email or phone number
+  subject?: string; // For emails
+  notificationId: mongoose.Types.ObjectId;
+  sourceEmail?: string; // The sender email address
+  replyToAddresses?: string[]; // Reply-to email addresses
 }
 
-export interface NotificationJobResult {
+export interface EmailNotificationJobResult {
   success: boolean;
   error?: string;
 }
 
 // Initialize the queue and QueueEvents
-export const userNotificationQueue = new Queue<NotificationJobData>(
+export const userNotificationQueue = new Queue<EmailNotificationJobData>(
   "user-notification",
   { connection: redisConfig }
 );
@@ -30,7 +39,10 @@ const queueEvents = new QueueEvents("user-notification", {
 });
 
 class WorkerManager {
-  private workers: Worker<NotificationJobData, NotificationJobResult>[] = [];
+  private workers: Worker<
+    EmailNotificationJobData,
+    EmailNotificationJobResult
+  >[] = [];
   private checkIntervalId: NodeJS.Timeout | null = null;
   private isShuttingDown = false; // Flag to track if the system is shutting down
 
@@ -38,7 +50,7 @@ class WorkerManager {
    * Initializes a new instance of WorkerManager.
    * @param queue The BullMQ queue instance for managing jobs.
    */
-  constructor(private queue: Queue<NotificationJobData>) {
+  constructor(private queue: Queue<EmailNotificationJobData>) {
     // Start monitoring immediately to handle delayed jobs when they become active
     this.monitorQueue();
   }
@@ -47,8 +59,11 @@ class WorkerManager {
    * Creates a new worker instance for processing jobs.
    * @returns The created Worker instance.
    */
-  private createWorker(): Worker<NotificationJobData, NotificationJobResult> {
-    return new Worker<NotificationJobData, NotificationJobResult>(
+  private createWorker(): Worker<
+    EmailNotificationJobData,
+    EmailNotificationJobResult
+  > {
+    return new Worker<EmailNotificationJobData, EmailNotificationJobResult>(
       this.queue.name,
       this.processJob.bind(this),
       {
@@ -64,12 +79,54 @@ class WorkerManager {
    * @returns The result of the job processing.
    */
   private async processJob(
-    job: Job<NotificationJobData, NotificationJobResult>
-  ): Promise<NotificationJobResult> {
-    logger.info(`Processing job ${job.id}`);
-    // Simulate job processing
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    return { success: true };
+    job: Job<EmailNotificationJobData, EmailNotificationJobResult>
+  ): Promise<EmailNotificationJobResult> {
+    logger.info(`Processing email job ${job.id}`);
+
+    const {
+      provider,
+      recipient,
+      message,
+      subject,
+      sourceEmail,
+      replyToAddresses,
+    } = job.data;
+
+    try {
+      if (!recipient.email) {
+        throw new Error("Email address is missing for the email notification");
+      }
+
+      // Get the appropriate email service provider (SendGrid, SES, or Nodemailer)
+      const emailService = getDeliveryService(
+        "email",
+        provider as "SENDGRID" | "SES" | "NODEMAILER"
+      );
+
+      // Send the email using the selected provider
+      const response = await emailService.sendEmail({
+        to: { email: recipient.email },
+        subject: subject || "Default Subject",
+        body: message,
+        sourceEmail,
+        replyToAddresses,
+      });
+
+      // Log the result and return success
+      logger.info(`Email sent: ${response?.messageId}`);
+      return { success: true };
+    } catch (error) {
+      // Log the error and re-throw it so the queue registers the job as failed
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logger.error(
+        `Failed to process email job ${job.id}: ${errorMessage}`,
+        error
+      );
+
+      // Re-throw the error to make sure the job fails in the queue
+      throw new Error(errorMessage);
+    }
   }
 
   /**
@@ -78,7 +135,7 @@ class WorkerManager {
    * @param options Optional job options to customize job behavior.
    */
   public async addJob(
-    jobData: NotificationJobData,
+    jobData: EmailNotificationJobData,
     options: JobsOptions = {}
   ): Promise<void> {
     try {
@@ -94,7 +151,7 @@ class WorkerManager {
    * @param jobs An array of job data and options to be added to the queue.
    */
   public async addJobsBulk(
-    jobs: Array<{ data: NotificationJobData; options?: JobsOptions }>
+    jobs: Array<{ data: EmailNotificationJobData; options?: JobsOptions }>
   ): Promise<void> {
     try {
       await Promise.all(
@@ -218,7 +275,7 @@ class WorkerManager {
    * @param worker The worker to which event listeners will be attached.
    */
   private attachWorkerListeners(
-    worker: Worker<NotificationJobData, NotificationJobResult>
+    worker: Worker<EmailNotificationJobData, EmailNotificationJobResult>
   ) {
     worker.on("completed", async (job) => {
       logger.info(`Job ${job.id} completed`);
@@ -247,7 +304,7 @@ class WorkerManager {
    * @param worker The worker to be stopped.
    */
   private async stopWorker(
-    worker: Worker<NotificationJobData, NotificationJobResult>
+    worker: Worker<EmailNotificationJobData, EmailNotificationJobResult>
   ) {
     await worker.close();
     logger.info(`Worker stopped. Total workers: ${this.workers.length}`);
@@ -281,11 +338,17 @@ class WorkerManager {
    * Initiates a graceful shutdown of the worker manager.
    */
   public async shutdown() {
-    this.isShuttingDown = true;
+    // Check if the system is already in the process of shutting down
+    if (this.isShuttingDown) {
+      logger.warn("Shutdown already in progress.");
+      return; // Exit if already shutting down
+    }
+
+    this.isShuttingDown = true; // Set the flag to true to indicate shutdown initiation
     logger.info("Initiating graceful shutdown...");
 
     // Stop accepting new jobs
-    await this.stopMonitoring();
+    this.stopMonitoring();
 
     // Wait for existing jobs to complete
     await Promise.all(
@@ -294,7 +357,7 @@ class WorkerManager {
       })
     );
 
-    logger.info("All workers stopped. Graceful shutdown complete.");
+    logger.info("Worker manager shutdown complete.");
   }
 
   /**
@@ -310,16 +373,16 @@ class WorkerManager {
 }
 
 // Export an instance of WorkerManager for the user notification queue
-export const workerManager = new WorkerManager(userNotificationQueue);
+export const emailQueue = new WorkerManager(userNotificationQueue);
 
 // Handle graceful shutdown
 process.on("SIGTERM", async () => {
-  await workerManager.shutdown();
+  await emailQueue.shutdown();
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
-  await workerManager.shutdown();
+  await emailQueue.shutdown();
   process.exit(0);
 });
 

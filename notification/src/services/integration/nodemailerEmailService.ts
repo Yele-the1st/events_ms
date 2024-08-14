@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { Recipient, NotificationResponse } from "./types";
+import { NotificationResponse, SendEmailOptions } from "./types";
 import logger from "../../config/winston/logger";
 
 export class NodemailerEmailService {
@@ -17,12 +17,16 @@ export class NodemailerEmailService {
   }
 
   async sendEmail(
-    to: Recipient,
-    subject: string,
-    body: string,
-    sourceEmail: string = process.env.SMTP_USER!, // Default to SMTP user if not provided
-    replyToAddresses: string[] = []
+    options: SendEmailOptions
   ): Promise<NotificationResponse | null> {
+    const {
+      to,
+      subject,
+      body,
+      sourceEmail = process.env.SMTP_USER!,
+      replyToAddresses = [],
+    } = options;
+
     const mailOptions = {
       from: sourceEmail,
       to: to.email!,

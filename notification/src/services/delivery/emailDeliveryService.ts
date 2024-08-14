@@ -1,295 +1,400 @@
 import mongoose from "mongoose";
-import NotificationRepository from "../../database/repository/notificationRepo";
-import { TemplateService } from "../templateService";
 import logger from "../../config/winston/logger";
 import { Notification } from "../../database/models/notification";
+import { EmailNotificationJobData, emailQueue } from "../../queues/emailQueue";
+import { NotificationService } from "../notificationService";
 
 class EmailDeliveryService {
-  private notificationRepository: NotificationRepository;
-  private templateService: TemplateService;
+  private notificationService: NotificationService;
 
   constructor() {
-    this.notificationRepository = new NotificationRepository();
-    this.templateService = new TemplateService(); // Initialize the TemplateService
+    this.notificationService = new NotificationService();
   }
 
+  /**
+   * Maps recipients from string `userId` to `mongoose.Types.ObjectId`.
+   * @param recipients - Array of objects containing `userId` and `email` string values.
+   * @returns Mapped recipients with `userId` converted to `mongoose.Types.ObjectId`.
+   */
+  private mapRecipients(recipients: { userId: string; email: string }[]) {
+    return recipients.map(({ userId, email }) => ({
+      userId: new mongoose.Types.ObjectId(userId),
+      email,
+    }));
+  }
+
+  /**
+   * Prepares job data for the email queue.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param subject - Email template with subject and content.
+   * @param notificationId - The ID of the notification.
+   * @param content - The content of the email message.
+   * @param sourceEmail - (Optional) Source email address.
+   * @param replyToAddresses - (Optional) Array of reply-to email addresses.
+   * @returns An array of job data ready for queueing.
+   */
+  private async prepareJobs(
+    recipients: { userId: mongoose.Types.ObjectId; email: string }[],
+    subject: string,
+    notificationId: mongoose.Types.ObjectId,
+    content: string,
+    sourceEmail?: string,
+    replyToAddresses?: string[]
+  ): Promise<Array<{ data: EmailNotificationJobData }>> {
+    return recipients.map(({ userId, email }) => ({
+      data: {
+        recipient: { email },
+        subject,
+        message: content,
+        notificationId,
+        userId: userId.toString(),
+        type: "email", // Ensure this matches the literal type "email"
+        provider: "NODEMAILER", // Ensure this matches one of the literal types in your type definition
+        sourceEmail: sourceEmail ?? "", // Provide a default empty string if undefined
+        replyToAddresses: replyToAddresses ?? [], // Provide a default empty array if undefined
+      } as EmailNotificationJobData,
+    }));
+  }
+
+  /**
+   * Sends an email using a specified template.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param templateName - The name of the email template to be used.
+   * @param channel - The communication channel (in this case, "email").
+   * @param data - Data used to replace placeholders in the email template.
+   * @param scheduledAt - The date and time when the email should be sent.
+   * @param createdByType - Indicates whether the notification was created by "user" or "system".
+   * @param createdBy - (Optional) The ID of the user who created the notification.
+   * @param sourceEmail - (Optional) The source email address for sending the email.
+   * @param replyToAddresses - (Optional) Array of reply-to email addresses.
+   * @returns A promise that resolves to the created notification document.
+   */
   private async sendEmail(
-    userId: mongoose.Types.ObjectId,
+    recipients: { userId: mongoose.Types.ObjectId; email: string }[],
     templateName: string,
     channel: "email",
     data: Record<string, string>,
     scheduledAt: Date,
-    createdBy?: mongoose.Types.ObjectId
+    createdByType: "user" | "system",
+    createdBy?: mongoose.Types.ObjectId,
+    sourceEmail?: string,
+    replyToAddresses?: string[]
   ): Promise<Notification> {
     try {
-      const template = await this.templateService.getTemplate(templateName);
-      if (!template) {
-        throw new Error(`Template ${templateName} not found`);
-      }
-
-      // Replace placeholders in the template body
-      const content = this.templateService.replacePlaceholders(template, data);
-
-      // Create notification
-      const notification = await this.notificationRepository.createNotification(
-        {
-          userId,
-          templateId: template._id as mongoose.Types.ObjectId,
+      // Create and schedule the notification using the refactored method
+      const notification =
+        await this.notificationService.createAndScheduleNotification(
+          recipients,
+          templateName,
           channel,
-          status: "pending",
+          data,
           scheduledAt,
-          content,
-          metadata: data,
-          createdBy, // Set the creator of the notification
-        }
-      );
+          createdByType,
+          createdBy
+        );
+
+      // Prepare email jobs for the queue
+      const jobs: Array<{ data: EmailNotificationJobData }> =
+        await this.prepareJobs(
+          recipients,
+          notification.content, // Use the content from the notification
+          notification._id as mongoose.Types.ObjectId, // Use the ID from the newly created notification
+          notification.content, // Use the content
+          sourceEmail,
+          replyToAddresses
+        );
+
+      // Add jobs to the email queue
+      await emailQueue.addJobsBulk(jobs);
 
       return notification;
     } catch (error) {
       logger.error(
         `Failed to send email for template ${templateName}. Error: ${error}`,
-        { error, userId, templateName, channel, data, scheduledAt, createdBy }
+        {
+          error,
+          recipients,
+          templateName,
+          channel,
+          data,
+          scheduledAt,
+          createdByType,
+          createdBy,
+        }
       );
-      throw error; // Rethrow the error to handle it further up the chain
+      throw error;
     }
   }
 
+  /**
+   * Sends a welcome email to new users.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param createdBy - (Optional) The ID of the user who initiated the email.
+   * @returns A promise that resolves to the created notification document.
+   */
   async sendWelcomeEmail(
-    userId: string,
-    email: string,
+    recipients: { userId: string; email: string }[],
     createdBy?: string
   ): Promise<Notification> {
-    const data = { email };
+    const data = { email: recipients.map((r) => r.email).join(", ") };
     return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
+      this.mapRecipients(recipients),
       "welcomeEmail",
       "email",
       data,
       new Date(),
+      createdBy ? "user" : "system",
       createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
     );
   }
 
-  async sendOTPEmail(
-    userId: string,
-    email: string,
-    otp: string,
-    createdBy?: string
-  ): Promise<Notification> {
-    const data = { email, otp };
-    return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
-      "otpEmail",
-      "email",
-      data,
-      new Date(),
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
-    );
-  }
-
-  async sendPasswordResetEmail(
-    userId: string,
-    email: string,
-    resetToken: string,
-    createdBy?: string
-  ): Promise<Notification> {
-    const data = { email, resetToken };
-    return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
-      "passwordResetEmail",
-      "email",
-      data,
-      new Date(),
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
-    );
-  }
-
-  async sendEventCreationEmail(
-    userId: string,
-    email: string,
-    eventId: string,
-    createdBy?: string
-  ): Promise<Notification> {
-    const data = { email, eventId };
-    return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
-      "eventCreationEmail",
-      "email",
-      data,
-      new Date(),
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
-    );
-  }
-
-  async sendEventUpdateEmail(
-    userId: string,
-    email: string,
-    eventId: string,
-    changes: string[],
-    createdBy?: string
-  ): Promise<Notification> {
-    const data = { email, eventId, changes: changes.join(", ") };
-    return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
-      "eventUpdateEmail",
-      "email",
-      data,
-      new Date(),
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
-    );
-  }
-
-  async sendTicketPurchaseEmail(
-    userId: string,
-    email: string,
-    ticketId: string,
-    createdBy?: string
-  ): Promise<Notification> {
-    const data = { email, ticketId };
-    return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
-      "ticketPurchaseEmail",
-      "email",
-      data,
-      new Date(),
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
-    );
-  }
-
-  async sendEventReminderEmail(
-    userId: string,
-    email: string,
-    eventId: string,
-    reminderTime: Date,
-    createdBy?: string
-  ): Promise<Notification> {
-    const data = { email, eventId, reminderTime: reminderTime.toISOString() };
-    return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
-      "eventReminderEmail",
-      "email",
-      data,
-      reminderTime,
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
-    );
-  }
-
-  async sendEventCancellationEmail(
-    userId: string,
-    email: string,
-    eventId: string,
-    createdBy?: string
-  ): Promise<Notification> {
-    const data = { email, eventId };
-    return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
-      "eventCancellationEmail",
-      "email",
-      data,
-      new Date(),
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
-    );
-  }
-
-  async sendFeedbackRequestEmail(
-    userId: string,
-    email: string,
-    eventId: string,
-    createdBy?: string
-  ): Promise<Notification> {
-    const data = { email, eventId };
-    return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
-      "feedbackRequestEmail",
-      "email",
-      data,
-      new Date(),
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
-    );
-  }
-
-  async sendPromotionalEmail(
-    userId: string,
-    email: string,
-    promotionDetails: string,
-    createdBy?: string
-  ): Promise<Notification> {
-    const data = { email, promotionDetails };
-    return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
-      "promotionalEmail",
-      "email",
-      data,
-      new Date(),
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
-    );
-  }
-
-  async sendInvitationEmail(
-    userId: string,
-    email: string,
-    eventId: string,
-    invitationMessage: string,
-    createdBy?: string
-  ): Promise<Notification> {
-    const data = { email, eventId, invitationMessage };
-    return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
-      "invitationEmail",
-      "email",
-      data,
-      new Date(),
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
-    );
-  }
-
-  async sendRefundProcessingEmail(
-    userId: string,
-    email: string,
-    refundId: string,
-    createdBy?: string
-  ): Promise<Notification> {
-    const data = { email, refundId };
-    return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
-      "refundProcessingEmail",
-      "email",
-      data,
-      new Date(),
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
-    );
-  }
-
-  async sendAccountDeactivationEmail(
-    userId: string,
-    email: string,
-    createdBy?: string
-  ): Promise<Notification> {
-    const data = { email };
-    return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
-      "accountDeactivationEmail",
-      "email",
-      data,
-      new Date(),
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
-    );
-  }
-
+  /**
+   * Sends a newsletter email to multiple recipients.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param newsletterContent - The content of the newsletter.
+   * @returns A promise that resolves to the created notification document.
+   */
   async sendNewsletterEmail(
-    userId: string,
-    email: string,
-    newsletterContent: string,
-    createdBy?: string
+    recipients: { userId: string; email: string }[],
+    newsletterContent: string
   ): Promise<Notification> {
-    const data = { email, newsletterContent };
+    const data = { content: newsletterContent };
     return this.sendEmail(
-      new mongoose.Types.ObjectId(userId),
+      this.mapRecipients(recipients),
       "newsletterEmail",
       "email",
       data,
       new Date(),
-      createdBy ? new mongoose.Types.ObjectId(createdBy) : undefined
+      "system"
+    );
+  }
+
+  /**
+   * Sends an account deactivation email to users.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @returns A promise that resolves to the created notification document.
+   */
+  async sendAccountDeactivationEmail(
+    recipients: { userId: string; email: string }[]
+  ): Promise<Notification> {
+    const data = {};
+    return this.sendEmail(
+      this.mapRecipients(recipients),
+      "accountDeactivationEmail",
+      "email",
+      data,
+      new Date(),
+      "system"
+    );
+  }
+
+  /**
+   * Sends a refund processing email to users.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param refundAmount - The amount being refunded.
+   * @returns A promise that resolves to the created notification document.
+   */
+  async sendRefundProcessingEmail(
+    recipients: { userId: string; email: string }[],
+    refundAmount: string
+  ): Promise<Notification> {
+    const data = { refundAmount };
+    return this.sendEmail(
+      this.mapRecipients(recipients),
+      "refundProcessingEmail",
+      "email",
+      data,
+      new Date(),
+      "system"
+    );
+  }
+
+  /**
+   * Sends an event invitation email.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param eventDetails - Details about the event.
+   * @returns A promise that resolves to the created notification document.
+   */
+  async sendInvitationEmail(
+    recipients: { userId: string; email: string }[],
+    eventDetails: string
+  ): Promise<Notification> {
+    const data = { eventDetails };
+    return this.sendEmail(
+      this.mapRecipients(recipients),
+      "invitationEmail",
+      "email",
+      data,
+      new Date(),
+      "system"
+    );
+  }
+
+  /**
+   * Sends a promotional email to users.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param promotionDetails - Information about the promotion.
+   * @returns A promise that resolves to the created notification document.
+   */
+  async sendPromotionalEmail(
+    recipients: { userId: string; email: string }[],
+    promotionDetails: string
+  ): Promise<Notification> {
+    const data = { promotionDetails };
+    return this.sendEmail(
+      this.mapRecipients(recipients),
+      "promotionalEmail",
+      "email",
+      data,
+      new Date(),
+      "system"
+    );
+  }
+
+  /**
+   * Sends a feedback request email.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param feedbackLink - The link to the feedback form.
+   * @returns A promise that resolves to the created notification document.
+   */
+  async sendFeedbackRequestEmail(
+    recipients: { userId: string; email: string }[],
+    feedbackLink: string
+  ): Promise<Notification> {
+    const data = { feedbackLink };
+    return this.sendEmail(
+      this.mapRecipients(recipients),
+      "feedbackRequestEmail",
+      "email",
+      data,
+      new Date(),
+      "system"
+    );
+  }
+
+  /**
+   * Sends an event cancellation email.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param eventDetails - Details of the cancelled event.
+   * @returns A promise that resolves to the created notification document.
+   */
+  async sendEventCancellationEmail(
+    recipients: { userId: string; email: string }[],
+    eventDetails: string
+  ): Promise<Notification> {
+    const data = { eventDetails };
+    return this.sendEmail(
+      this.mapRecipients(recipients),
+      "eventCancellationEmail",
+      "email",
+      data,
+      new Date(),
+      "system"
+    );
+  }
+
+  /**
+   * Sends an event reminder email.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param eventDetails - Details of the upcoming event.
+   * @returns A promise that resolves to the created notification document.
+   */
+  async sendEventReminderEmail(
+    recipients: { userId: string; email: string }[],
+    eventDetails: string
+  ): Promise<Notification> {
+    const data = { eventDetails };
+    return this.sendEmail(
+      this.mapRecipients(recipients),
+      "eventReminderEmail",
+      "email",
+      data,
+      new Date(),
+      "system"
+    );
+  }
+
+  /**
+   * Sends a ticket purchase email.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param ticketDetails - Details of the purchased ticket.
+   * @returns A promise that resolves to the created notification document.
+   */
+  async sendTicketPurchaseEmail(
+    recipients: { userId: string; email: string }[],
+    ticketDetails: string
+  ): Promise<Notification> {
+    const data = { ticketDetails };
+    return this.sendEmail(
+      this.mapRecipients(recipients),
+      "ticketPurchaseEmail",
+      "email",
+      data,
+      new Date(),
+      "system"
+    );
+  }
+
+  /**
+   * Sends an event update email.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param eventUpdate - Details of the event update.
+   * @returns A promise that resolves to the created notification document.
+   */
+  async sendEventUpdateEmail(
+    recipients: { userId: string; email: string }[],
+    eventUpdate: string
+  ): Promise<Notification> {
+    const data = { eventUpdate };
+    return this.sendEmail(
+      this.mapRecipients(recipients),
+      "eventUpdateEmail",
+      "email",
+      data,
+      new Date(),
+      "system"
+    );
+  }
+
+  /**
+   * Sends an event creation email.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param eventDetails - Details of the created event.
+   * @returns A promise that resolves to the created notification document.
+   */
+  async sendEventCreationEmail(
+    recipients: { userId: string; email: string }[],
+    eventDetails: string
+  ): Promise<Notification> {
+    const data = { eventDetails };
+    return this.sendEmail(
+      this.mapRecipients(recipients),
+      "eventCreationEmail",
+      "email",
+      data,
+      new Date(),
+      "system"
+    );
+  }
+
+  /**
+   * Sends a password reset email.
+   * @param recipients - Array of recipient objects with `userId` and `email`.
+   * @param resetLink - Link to reset the user's password.
+   * @returns A promise that resolves to the created notification document.
+   */
+  async sendPasswordResetEmail(
+    recipients: { userId: string; email: string }[],
+    resetLink: string
+  ): Promise<Notification> {
+    const data = { resetLink };
+    return this.sendEmail(
+      this.mapRecipients(recipients),
+      "passwordResetEmail",
+      "email",
+      data,
+      new Date(),
+      "system"
     );
   }
 }

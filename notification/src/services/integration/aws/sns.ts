@@ -1,5 +1,5 @@
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
-import { NotificationResponse, Recipient } from "../types";
+import { NotificationResponse, SendSMSOptions } from "../types";
 
 export class SNSSMSService {
   private snsClient: SNSClient;
@@ -14,10 +14,9 @@ export class SNSSMSService {
     });
   }
 
-  async sendSMS(
-    to: Recipient,
-    body: string
-  ): Promise<NotificationResponse | null> {
+  async sendSMS(options: SendSMSOptions): Promise<NotificationResponse | null> {
+    const { to, body } = options;
+
     const params = {
       Message: body,
       PhoneNumber: to.phoneNumber!, // PhoneNumber is required for SMS

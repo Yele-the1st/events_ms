@@ -1,5 +1,5 @@
 import sgMail from "@sendgrid/mail";
-import { Recipient, NotificationResponse } from "./types";
+import { NotificationResponse, SendEmailOptions } from "./types";
 import logger from "../../config/winston/logger";
 
 export class SendGridEmailService {
@@ -8,12 +8,16 @@ export class SendGridEmailService {
   }
 
   async sendEmail(
-    to: Recipient,
-    subject: string,
-    body: string,
-    sourceEmail: string, // Default to SendGrid's from email
-    replyToAddresses: string[] = []
+    options: SendEmailOptions
   ): Promise<NotificationResponse | null> {
+    const {
+      to,
+      subject,
+      body,
+      sourceEmail = process.env.SENDGRID_FROM_EMAIL!,
+      replyToAddresses = [],
+    } = options;
+
     const msg = {
       to: to.email!,
       from: sourceEmail,

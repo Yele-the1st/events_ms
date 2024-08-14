@@ -1,16 +1,21 @@
 import mongoose from "mongoose";
 import { Notification, NotificationModel } from "../models/notification";
 
-interface CreateNotificationParams {
-  userId: mongoose.Types.ObjectId;
-  createdBy?: mongoose.Types.ObjectId;
-  templateId: mongoose.Types.ObjectId;
-  channel: "email" | "sms";
-  status: "pending" | "sent" | "failed";
-  scheduledAt: Date;
-  sentAt?: Date;
+export interface CreateNotificationParams {
+  title: string;
   content: string;
-  metadata?: Record<string, unknown>;
+  createdByType: "user" | "system"; // Specifies whether created by a user or system
+  createdBy?: mongoose.Types.ObjectId; // Optional field, only required if createdByType is "user"
+  templateId?: mongoose.Types.ObjectId; // Optional template reference
+  channel: "email" | "sms"; // Supported channels
+  status: "pending" | "queued" | "processing" | "completed"; // Overall notification status
+  scheduledAt: Date; // When the notification is scheduled to be sent
+  recipients: {
+    userId: mongoose.Types.ObjectId;
+    email: string;
+    status: "pending" | "sent" | "failed";
+    sentAt?: Date;
+  }[]; // Array of recipients
 }
 
 interface UpdateNotificationParams {
@@ -46,7 +51,7 @@ class NotificationRepository {
    * @returns {Promise<Notification[]>} - The list of found notifications.
    */
   async findByUserId(userId: mongoose.Types.ObjectId): Promise<Notification[]> {
-    return await NotificationModel.find({ userId }).exec();
+    return await NotificationModel.find({ "recipients.userId": userId }).exec();
   }
 
   /**
@@ -55,7 +60,7 @@ class NotificationRepository {
    * @returns {Promise<Notification[]>} - The list of found notifications.
    */
   async findByStatus(
-    status: "pending" | "sent" | "failed"
+    status: "pending" | "queued" | "processing" | "completed"
   ): Promise<Notification[]> {
     return await NotificationModel.find({ status }).exec();
   }

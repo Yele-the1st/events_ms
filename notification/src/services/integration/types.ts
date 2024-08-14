@@ -5,6 +5,21 @@ export interface Recipient {
   phoneNumber?: string; // Optional, as it may not be needed for email
 }
 
+// Options for sending email
+export interface SendEmailOptions {
+  to: Recipient;
+  subject: string;
+  body: string;
+  sourceEmail?: string; // Optional, default to environment variable if not provided
+  replyToAddresses?: string[]; // Optional, default to empty array if not provided
+}
+
+// Options for sending SMS
+export interface SendSMSOptions {
+  to: Recipient; // Assumes phoneNumber is required
+  body: string;
+}
+
 export interface NotificationResponse {
   messageId: string;
   status: string;
@@ -12,15 +27,9 @@ export interface NotificationResponse {
 }
 
 export interface EmailService {
-  sendEmail(
-    to: Recipient,
-    subject: string,
-    body: string,
-    sourceEmail?: string,
-    replyToAddresses?: string[]
-  ): Promise<NotificationResponse | null>;
+  sendEmail(options: SendEmailOptions): Promise<NotificationResponse | null>;
 }
 
 export interface SMSService {
-  sendSMS(to: Recipient, body: string): Promise<NotificationResponse | null>;
+  sendSMS(options: SendSMSOptions): Promise<NotificationResponse | null>;
 }
