@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
-import EmailDeliveryService from "../../services/delivery/emailDeliveryService";
+import { EmailDeliveryService } from "../../services/delivery/emailDeliveryService";
 
-class DeliveryController {
+export class DeliveryController {
   private emailDeliveryService: EmailDeliveryService;
 
   constructor() {
@@ -11,56 +11,63 @@ class DeliveryController {
   /**
    * Sends a welcome email to new users.
    */
-  async sendWelcomeEmail(req: Request, res: Response, next: NextFunction) {
+  sendWelcomeEmail = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     try {
-      const { recipients, createdBy } = req.body;
-      const notification = await this.emailDeliveryService.sendWelcomeEmail(
+      const { recipients } = req.body;
+      const notification = await this.emailDeliveryService.sendWelcomeEmail({
         recipients,
-        createdBy
-      );
+      });
       res.status(200).json(notification);
     } catch (error) {
       next(error);
     }
-  }
+  };
 
   /**
    * Sends a newsletter email to users.
    */
-  async sendNewsletterEmail(req: Request, res: Response, next: NextFunction) {
+  sendNewsletterEmail = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ) => {
     try {
-      const { recipients, content } = req.body;
-      const notification = await this.emailDeliveryService.sendNewsletterEmail(
+      const { recipients, content, scheduledAt } = req.body;
+      const notification = await this.emailDeliveryService.sendNewsletterEmail({
         recipients,
-        content
-      );
+        newsletterContent: content,
+        scheduledAt,
+      });
       res.status(200).json(notification);
     } catch (error) {
       next(error);
     }
-  }
+  };
 
   /**
    * Sends an account deactivation email.
    */
-  async sendAccountDeactivationEmail(
+  sendAccountDeactivationEmail = async (
     req: Request,
     res: Response,
     next: NextFunction
-  ) {
+  ) => {
     try {
-      const { recipients } = req.body;
+      const { recipients, scheduledAt } = req.body;
       const notification =
-        await this.emailDeliveryService.sendAccountDeactivationEmail(
-          recipients
-        );
+        await this.emailDeliveryService.sendAccountDeactivationEmail({
+          recipients,
+          scheduledAt,
+        });
       res.status(200).json(notification);
     } catch (error) {
       next(error);
     }
-  }
+  };
 
   // Add more handlers for other types of emails such as event invitations, refunds, etc.
 }
-
-export default new DeliveryController();

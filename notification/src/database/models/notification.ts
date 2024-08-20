@@ -2,7 +2,6 @@ import { Schema, model, Document } from "mongoose";
 
 // Interface for recipient information
 interface Recipient {
-  userId: Schema.Types.ObjectId; // Reference to the recipient user
   email: string;
   status: "pending" | "sent" | "failed"; // Status of the notification for each recipient
   sentAt?: Date; // Optional, when the notification was sent
@@ -23,17 +22,18 @@ export interface Notification extends Document {
   updatedAt: Date;
 }
 
+// Define the Recipient schema
 const RecipientSchema = new Schema<Recipient>({
-  userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-  email: { type: String, required: true },
+  email: { type: String, required: true }, // Only the email is required
   status: {
     type: String,
     enum: ["pending", "sent", "failed"],
     required: true,
   },
-  sentAt: { type: Date },
+  sentAt: { type: Date }, // Optional, when the notification was sent
 });
 
+// Define the Notification schema
 const NotificationSchema = new Schema<Notification>(
   {
     title: { type: String, required: true },
@@ -47,7 +47,7 @@ const NotificationSchema = new Schema<Notification>(
       type: Schema.Types.ObjectId,
       ref: "User",
     }, // Optional field, only required if createdByType is "user"
-    recipients: [RecipientSchema], // Array of recipients
+    recipients: [RecipientSchema], // Array of recipients (just emails now)
     templateId: {
       type: Schema.Types.ObjectId,
       ref: "Template",
@@ -70,6 +70,7 @@ const NotificationSchema = new Schema<Notification>(
   { timestamps: true }
 );
 
+// Export the Notification model
 export const NotificationModel = model<Notification>(
   "Notification",
   NotificationSchema

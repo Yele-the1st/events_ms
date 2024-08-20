@@ -1,6 +1,7 @@
-import mongoose from "mongoose";
 import { Template } from "../database/models/template";
-import TemplateRepository from "../database/repository/templateRepo";
+import TemplateRepository, {
+  CreateTemplateParams,
+} from "../database/repository/templateRepo";
 
 export class TemplateService {
   private templateRepository: TemplateRepository;
@@ -24,30 +25,24 @@ export class TemplateService {
 
   /**
    * Creates a new template.
-   * @param {string} name - The name of the template.
-   * @param {string} subject - The subject of the template.
-   * @param {string} body - The body of the template.
-   * @param {mongoose.Types.ObjectId} createdBy - The ID of the user who created the template.
-   * @param {'email' | 'sms'} channel - The channel for the template.
+   * @param {CreateTemplateParams} params - The parameters to create a template.
    * @returns {Promise<Template>} - The created template.
    */
-  async createTemplate(
-    name: string,
-    subject: string,
-    body: string,
-    createdBy: mongoose.Types.ObjectId,
-    channel: "email" | "sms"
-  ): Promise<Template> {
+  async createTemplate(params: CreateTemplateParams): Promise<Template> {
+    const { name, subject, body, createdBy, channel, createdByType } = params;
+
     const existingTemplate = await this.templateRepository.findByName(name);
     if (existingTemplate) {
       throw new Error(`Template ${name} already exists`);
     }
+
     return await this.templateRepository.createTemplate({
       name,
       subject,
       body,
       createdBy,
       channel,
+      createdByType,
     });
   }
 

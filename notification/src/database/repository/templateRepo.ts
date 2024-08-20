@@ -1,11 +1,12 @@
 import mongoose from "mongoose";
 import { TemplateModel, Template } from "../models/template";
 
-interface CreateTemplateParams {
+export interface CreateTemplateParams {
   name: string;
   subject: string;
   body: string;
-  createdBy: mongoose.Types.ObjectId;
+  createdBy?: mongoose.Types.ObjectId;
+  createdByType: "user" | "system"; // Specifies if the notification was created by a user or system
   channel: "email" | "sms";
 }
 

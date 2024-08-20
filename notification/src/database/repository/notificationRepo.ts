@@ -11,11 +11,10 @@ export interface CreateNotificationParams {
   status: "pending" | "queued" | "processing" | "completed"; // Overall notification status
   scheduledAt: Date; // When the notification is scheduled to be sent
   recipients: {
-    userId: mongoose.Types.ObjectId;
-    email: string;
+    email: string; // Collect only the email address for recipients
     status: "pending" | "sent" | "failed";
     sentAt?: Date;
-  }[]; // Array of recipients
+  }[]; // Array of recipients with just email and status
 }
 
 interface UpdateNotificationParams {
@@ -46,12 +45,12 @@ class NotificationRepository {
   }
 
   /**
-   * Finds notifications by user ID.
-   * @param {mongoose.Types.ObjectId} userId - The user ID associated with notifications.
+   * Finds notifications by user email.
+   * @param {string} email - The email address associated with notifications.
    * @returns {Promise<Notification[]>} - The list of found notifications.
    */
-  async findByUserId(userId: mongoose.Types.ObjectId): Promise<Notification[]> {
-    return await NotificationModel.find({ "recipients.userId": userId }).exec();
+  async findByEmail(email: string): Promise<Notification[]> {
+    return await NotificationModel.find({ "recipients.email": email }).exec();
   }
 
   /**

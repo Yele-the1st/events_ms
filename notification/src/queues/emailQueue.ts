@@ -1,4 +1,4 @@
-import { Queue, Worker, Job, QueueEvents, JobsOptions } from "bullmq";
+import { Queue, Worker, Job, QueueEvents, JobsOptions, JobType } from "bullmq";
 import logger from "../config/winston/logger";
 import { redisConfig } from "../config/cache/redis";
 import { getDeliveryService } from "../services/integration/getDeliveryService";
@@ -63,6 +63,7 @@ class WorkerManager {
     EmailNotificationJobData,
     EmailNotificationJobResult
   > {
+    logger.info("Creating a new worker...");
     return new Worker<EmailNotificationJobData, EmailNotificationJobResult>(
       this.queue.name,
       this.processJob.bind(this),
@@ -71,6 +72,43 @@ class WorkerManager {
         concurrency: 1,
       }
     );
+  }
+
+  /**
+   * Logs the statuses of jobs in the queue.
+   */
+  public async logJobStatuses() {
+    try {
+      const statuses: JobType[] = ["completed", "waiting", "active", "failed"];
+      const jobs = await this.queue.getJobs(statuses);
+
+      for (const status of statuses) {
+        const jobsInStatus = await Promise.all(
+          jobs.map(async (job) => ({
+            job,
+            state: await job.getState(),
+          }))
+        );
+
+        const filteredJobs = jobsInStatus.filter(
+          ({ state }) => state === status
+        );
+
+        if (filteredJobs.length > 0) {
+          logger.info(
+            `${
+              status.charAt(0).toUpperCase() + status.slice(1)
+            } Jobs: ${filteredJobs
+              .map(({ job }) => `${job.name} (ID: ${job.id})`)
+              .join(", ")}`
+          );
+        } else {
+          logger.info(`No ${status} jobs.`);
+        }
+      }
+    } catch (error) {
+      logger.error(`Failed to retrieve job statuses: ${error}`, error);
+    }
   }
 
   /**
@@ -102,6 +140,9 @@ class WorkerManager {
         "email",
         provider as "SENDGRID" | "SES" | "NODEMAILER"
       );
+
+      // Log the result and return success
+      logger.info(`EmailService generated`);
 
       // Send the email using the selected provider
       const response = await emailService.sendEmail({
@@ -139,8 +180,12 @@ class WorkerManager {
     options: JobsOptions = {}
   ): Promise<void> {
     try {
-      await this.queue.add("notification-job", jobData, options);
-      logger.info(`Added job with ID ${options.jobId} to the queue.`);
+      await this.queue.add("sendEmail-job", jobData, options);
+      logger.info(
+        `Added job with ID ${options.jobId || "unknown"} to the queue.`
+      );
+      // Ensure there is a worker to process the jobs
+      await this.ensureWorker();
     } catch (error) {
       logger.error(`Failed to add job to queue: ${error}`, error);
     }
@@ -155,13 +200,28 @@ class WorkerManager {
   ): Promise<void> {
     try {
       await Promise.all(
-        jobs.map(({ data, options }) =>
-          this.queue.add("notification-job", data, options)
-        )
+        jobs.map(({ data, options }) => {
+          logger.info(`Adding job for recipient: ${data.recipient.email}`);
+          return this.queue.add("sendEmail-job", data, options);
+        })
       );
       logger.info(`Added ${jobs.length} jobs to the queue.`);
+      // Ensure there is a worker to process the jobs
+      await this.ensureWorker();
     } catch (error) {
       logger.error(`Failed to add jobs to queue: ${error}`, error);
+    }
+  }
+
+  /**
+   * Ensures that there is at least one worker running to process jobs.
+   */
+  private async ensureWorker() {
+    if (this.workers.length === 0) {
+      const newWorker = this.createWorker();
+      this.attachWorkerListeners(newWorker);
+      this.workers.push(newWorker);
+      logger.info(`Worker created as no workers were running.`);
     }
   }
 
@@ -247,24 +307,43 @@ class WorkerManager {
     const jobCount = await this.queue.count();
     const delayedCount = await this.queue.getDelayedCount();
 
-    if (
-      jobCount + delayedCount >= THRESHOLD &&
-      this.workers.length < MAX_WORKERS
-    ) {
-      const newWorker = this.createWorker();
-      this.attachWorkerListeners(newWorker);
-      this.workers.push(newWorker);
-      logger.info(`Worker added. Total workers: ${this.workers.length}`);
-    } else if (
-      jobCount + delayedCount < THRESHOLD &&
-      this.workers.length > MIN_WORKERS
-    ) {
-      const workerToRemove = this.workers.pop();
-      if (workerToRemove) {
-        await this.stopWorker(workerToRemove);
+    logger.info(
+      `Current job count: ${jobCount}, delayed count: ${delayedCount}`
+    );
+
+    if (jobCount + delayedCount === 0) {
+      // If no jobs are in the queue and no delayed jobs
+      if (this.workers.length > 0) {
+        // Stop all workers
+        logger.info("No jobs remaining in the queue. Stopping all workers...");
+        await Promise.all(
+          this.workers.map((worker) => this.stopWorker(worker))
+        );
+        this.workers = [];
+      }
+
+      // Stop monitoring since there are no jobs left to process
+      this.stopMonitoring();
+    } else {
+      // Manage workers based on the current job and delayed job count
+      if (
+        jobCount + delayedCount >= THRESHOLD &&
+        this.workers.length < MAX_WORKERS
+      ) {
+        const newWorker = this.createWorker();
+        this.attachWorkerListeners(newWorker);
+        this.workers.push(newWorker);
+        logger.info(`Worker added. Total workers: ${this.workers.length}`);
+      } else if (
+        jobCount + delayedCount < THRESHOLD &&
+        this.workers.length > MIN_WORKERS
+      ) {
+        const workerToRemove = this.workers.pop();
+        if (workerToRemove) {
+          await this.stopWorker(workerToRemove);
+        }
       }
     }
-
     if (jobCount + delayedCount === 0 && this.workers.length === 0) {
       this.stopMonitoring();
     }
@@ -364,16 +443,40 @@ class WorkerManager {
    * Sets up event listeners to monitor the queue.
    */
   private monitorQueue() {
-    queueEvents.on("waiting", () => this.startMonitoring());
-    queueEvents.on("completed", () => this.startMonitoring());
-    queueEvents.on("failed", () => this.startMonitoring());
-    queueEvents.on("active", () => this.startMonitoring());
-    queueEvents.on("delayed", () => this.startMonitoring()); // New event listener for delayed jobs
+    queueEvents.on("waiting", (jobId) => {
+      logger.info(`Job ${jobId.jobId} is waiting to be processed`);
+      this.startMonitoring();
+    });
+
+    queueEvents.on("active", (jobId) => {
+      logger.info(`Job ${jobId.jobId} is now active`);
+      this.startMonitoring();
+    });
+
+    queueEvents.on("completed", (jobId) => {
+      logger.info(`Job ${jobId.jobId} has been completed`);
+      this.startMonitoring();
+    });
+
+    queueEvents.on("failed", (jobId, err) => {
+      logger.error(
+        `Job ${jobId.jobId} failed because ${jobId.failedReason}: ${err} `
+      );
+      this.startMonitoring();
+    });
+
+    queueEvents.on("delayed", (jobId) => {
+      logger.info(`Job ${jobId.jobId} has been delayed`);
+      this.startMonitoring();
+    });
   }
 }
 
 // Export an instance of WorkerManager for the user notification queue
 export const emailQueue = new WorkerManager(userNotificationQueue);
+
+// Call the function to log job statuses
+emailQueue.logJobStatuses();
 
 // Handle graceful shutdown
 process.on("SIGTERM", async () => {
