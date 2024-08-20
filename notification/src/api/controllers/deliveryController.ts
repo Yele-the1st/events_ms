@@ -17,9 +17,11 @@ export class DeliveryController {
     next: NextFunction
   ) => {
     try {
-      const { recipients } = req.body;
+      const { recipients, firstName, lastName, company } = req.body;
+      const data = { firstName, lastName, company };
       const notification = await this.emailDeliveryService.sendWelcomeEmail({
         recipients,
+        data,
       });
       res.status(200).json(notification);
     } catch (error) {

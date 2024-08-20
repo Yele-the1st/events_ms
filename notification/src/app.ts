@@ -29,8 +29,11 @@ app.disable("x-powered-by");
 // Apply Helmet middleware for enhanced security headers
 app.use(helmet());
 
-// Parse incoming request bodies with JSON payloads
+// Middleware to parse JSON bodies
 app.use(express.json());
+
+// Middleware to parse URL-encoded bodies (for form submissions)
+app.use(express.urlencoded({ extended: true }));
 
 // Use Morgan for HTTP request logging with Winston integration
 app.use(morganMiddleware);

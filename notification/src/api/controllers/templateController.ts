@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { TemplateService } from "../../services/templateService";
+import path from "path";
+import fs from "fs";
+import logger from "../../config/winston/logger";
 
 export class TemplateController {
   private templateService: TemplateService;
@@ -22,8 +25,36 @@ export class TemplateController {
   // Create a new template
   createTemplate = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { name, subject, body, createdBy, channel, createdByType } =
-        req.body;
+      const { name, subject, createdBy, channel, createdByType } = req.body;
+      let body = "";
+
+      if (req.file) {
+        // Log the uploaded file details for debugging
+        logger.info("Uploaded file:", req.file);
+        // Construct the path to the uploaded file
+        const filePath = path.join(
+          __dirname,
+          "../../../uploads",
+          req.file.filename
+        );
+
+        // Check if the file exists before reading
+        if (fs.existsSync(filePath)) {
+          // Read HTML content from the uploaded file
+          body = fs.readFileSync(filePath, "utf8");
+
+          // Optionally, delete the file after processing
+          fs.unlinkSync(filePath);
+        } else {
+          return res
+            .status(404)
+            .json({ success: false, message: "File not found." });
+        }
+      } else {
+        // Fallback to body from request if no file is uploaded
+        body = req.body.body;
+      }
+
       const createdTemplate = await this.templateService.createTemplate({
         name,
         subject,
@@ -32,6 +63,7 @@ export class TemplateController {
         createdBy,
         channel,
       });
+
       res.status(201).json(createdTemplate);
     } catch (error) {
       next(error);
@@ -54,11 +86,15 @@ export class TemplateController {
   };
 
   // Delete a template by name
+
   deleteTemplate = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { name } = req.params;
       await this.templateService.deleteTemplate(name);
-      res.status(204).send();
+      res.status(200).json({
+        success: true,
+        message: `Template '${name}' has been successfully deleted.`,
+      });
     } catch (error) {
       next(error);
     }

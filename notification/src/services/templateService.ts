@@ -87,16 +87,16 @@ export class TemplateService {
   }
 
   /**
-   * Replaces placeholders in a template body.
-   * @param {Template} template - The template to use.
+   * Replaces placeholders in a template string.
+   * @param {string} templateStr - The template string (body or subject) to use.
    * @param {Record<string, string>} data - The data to replace placeholders with.
-   * @returns {string} - The body with replaced placeholders.
+   * @returns {string} - The string with replaced placeholders.
    */
   replacePlaceholders(
-    template: Template,
+    templateStr: string,
     data: Record<string, string>
   ): string {
-    return template.body.replace(
+    return templateStr.replace(
       /{{(.*?)}}/g,
       (_, key) => data[key.trim()] || ""
     );

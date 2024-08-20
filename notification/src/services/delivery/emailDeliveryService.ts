@@ -184,11 +184,13 @@ export class EmailDeliveryService {
    */
   async sendWelcomeEmail({
     recipients,
+    data,
     createdBy,
     scheduledAt = new Date(), // Default to current date if not provided
   }: {
     recipients: { email: string }[];
     createdBy?: string;
+    data: Record<string, string>;
     scheduledAt?: Date;
   }): Promise<Notification> {
     const createdByType = createdBy ? "user" : "system";
@@ -198,9 +200,10 @@ export class EmailDeliveryService {
 
     return this.queueEmail({
       recipients: this.mapRecipients(recipients),
-      templateName: "test2",
+      templateName: "welcomeEmail",
       channel: "email",
       scheduledAt,
+      data,
       createdByType,
       createdBy: createdById,
     });

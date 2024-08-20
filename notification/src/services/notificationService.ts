@@ -42,12 +42,12 @@ export class NotificationService {
 
       // Replace placeholders in the template body with data, if provided
       const content = data
-        ? this.templateService.replacePlaceholders(template, data)
+        ? this.templateService.replacePlaceholders(template.body, data)
         : template.body;
 
       // Replace placeholders in the template subject with data, if provided
       const subject = data
-        ? this.templateService.replacePlaceholders(template, data)
+        ? this.templateService.replacePlaceholders(template.subject, data)
         : template.subject;
 
       // Prepare recipient details for the notification
